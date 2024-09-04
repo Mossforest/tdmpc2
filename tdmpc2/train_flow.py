@@ -14,7 +14,7 @@ from common.parser import parse_cfg
 from common.seed import set_seed
 from common.buffer import Buffer
 from envs import make_env
-from tdmpc2 import TDMPC2
+from tdmpc2 import TDMPC2, TDMPC2_Flow
 from trainer.offline_trainer import OfflineTrainer
 from trainer.online_trainer import OnlineTrainer
 from common.logger import Logger
@@ -22,7 +22,7 @@ from common.logger import Logger
 torch.backends.cudnn.benchmark = True
 
 
-@hydra.main(config_name='config', config_path='.')
+@hydra.main(config_name='config_flow', config_path='.')
 def train(cfg: dict):
 	"""
 	Script for training single-task / multi-task TD-MPC2 agents.
@@ -52,7 +52,7 @@ def train(cfg: dict):
 	trainer = trainer_cls(
 		cfg=cfg,
 		env=make_env(cfg),
-		agent=TDMPC2(cfg),
+		agent=TDMPC2_Flow(cfg),
 		buffer=Buffer(cfg),
 		logger=Logger(cfg),
 	)
