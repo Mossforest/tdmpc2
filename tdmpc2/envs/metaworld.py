@@ -13,16 +13,18 @@ class MetaWorldWrapper(gym.Wrapper):
 		self.camera_name = "corner2"
 		self.env.model.cam_pos[2] = [0.75, 0.075, 0.7]
 		self.env._freeze_rand_vec = False
+		self.env.render_mode = 'rgb_array'
 
 	def reset(self, **kwargs):
-		obs = super().reset(**kwargs).astype(np.float32)
+		obs_info = super().reset(**kwargs)
+		obs = obs_info[0].astype(np.float32)
 		self.env.step(np.zeros(self.env.action_space.shape))
 		return obs
 
 	def step(self, action):
 		reward = 0
 		for _ in range(2):
-			obs, r, _, info = self.env.step(action.copy())
+			obs, r, _, _, info = self.env.step(action.copy())
 			reward += r
 		obs = obs.astype(np.float32)
 		return obs, reward, False, info
@@ -32,9 +34,9 @@ class MetaWorldWrapper(gym.Wrapper):
 		return self.env.unwrapped
 
 	def render(self, *args, **kwargs):
-		return self.env.render(
-			offscreen=True, resolution=(384, 384), camera_name=self.camera_name
-		).copy()
+		return self.env.render().copy()
+		# 	offscreen=True, resolution=(384, 384), camera_name=self.camera_name
+		# ).copy()
 
 
 def make_env(cfg):

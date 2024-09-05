@@ -27,7 +27,7 @@ TASK_SET = {
 	'mt30': [
 		# 19 original dmcontrol tasks
 		'walker-stand', 'walker-walk', 'walker-run', 'cheetah-run', 'reacher-easy',
-	    'reacher-hard', 'acrobot-swingup', 'pendulum-swingup', 'cartpole-balance', 'cartpole-balance-sparse',
+		'reacher-hard', 'acrobot-swingup', 'pendulum-swingup', 'cartpole-balance', 'cartpole-balance-sparse',
 		'cartpole-swingup', 'cartpole-swingup-sparse', 'cup-catch', 'finger-spin', 'finger-turn-easy',
 		'finger-turn-hard', 'fish-swim', 'hopper-stand', 'hopper-hop',
 		# 11 custom dmcontrol tasks
@@ -38,7 +38,7 @@ TASK_SET = {
 	'mt80': [
 		# 19 original dmcontrol tasks
 		'walker-stand', 'walker-walk', 'walker-run', 'cheetah-run', 'reacher-easy',
-	    'reacher-hard', 'acrobot-swingup', 'pendulum-swingup', 'cartpole-balance', 'cartpole-balance-sparse',
+		'reacher-hard', 'acrobot-swingup', 'pendulum-swingup', 'cartpole-balance', 'cartpole-balance-sparse',
 		'cartpole-swingup', 'cartpole-swingup-sparse', 'cup-catch', 'finger-spin', 'finger-turn-easy',
 		'finger-turn-hard', 'fish-swim', 'hopper-stand', 'hopper-hop',
 		# 11 custom dmcontrol tasks
@@ -56,5 +56,23 @@ TASK_SET = {
 		'mw-reach', 'mw-reach-wall', 'mw-shelf-place', 'mw-soccer', 'mw-stick-push',
 		'mw-stick-pull', 'mw-sweep-into', 'mw-sweep', 'mw-window-open', 'mw-window-close',
 		'mw-bin-picking', 'mw-box-close', 'mw-door-lock', 'mw-door-unlock', 'mw-hand-insert',
+	],
+	'mtgrab15': [
+		# meta-world with 15 grab tasks
+		# "mw-assembly",
+		# "mw-basketball",
+		# "mw-bin-picking",
+		# "mw-box-close",
+		# "mw-disassemble",
+		# "mw-hand-insert",
+		# "mw-hammer",
+		# "mw-pick-place-wall",
+		# "mw-pick-out-of-hole",
+		# "mw-pick-place",
+		# "mw-peg-insert-side",
+		# "mw-peg-unplug-side",
+		# "mw-stick-push",
+		"mw-stick-pull",
+		"mw-shelf-place",
 	],
 }

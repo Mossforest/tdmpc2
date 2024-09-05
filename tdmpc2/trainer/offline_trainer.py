@@ -40,13 +40,13 @@ class OfflineTrainer(Trainer):
 				
 	def train(self):
 		"""Train a TD-MPC2 agent."""
-		assert self.cfg.multitask and self.cfg.task in {'mt30', 'mt80'}, \
-			'Offline training only supports multitask training with mt30 or mt80 task sets.'
+		# assert self.cfg.multitask and self.cfg.task in {'mt30', 'mt80'}, \
+		# 	'Offline training only supports multitask training with mt30 or mt80 task sets.'
 
 		# Load data
-		assert self.cfg.task in self.cfg.data_dir, \
-			f'Expected data directory {self.cfg.data_dir} to contain {self.cfg.task}, ' \
-			f'please double-check your config.'
+		# assert self.cfg.task in self.cfg.data_dir, \
+		# 	f'Expected data directory {self.cfg.data_dir} to contain {self.cfg.task}, ' \
+		# 	f'please double-check your config.'
 		fp = Path(os.path.join(self.cfg.data_dir, '*.pt'))
 		fps = sorted(glob(str(fp)))
 		assert len(fps) > 0, f'No data found at {fp}'
@@ -54,13 +54,19 @@ class OfflineTrainer(Trainer):
 	
 		# Create buffer for sampling
 		_cfg = deepcopy(self.cfg)
-		_cfg.episode_length = 101 if self.cfg.task == 'mt80' else 501
-		_cfg.buffer_size = 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
+		_cfg.episode_length = 101 if self.cfg.task in ['mt80', 'mtgrab15'] else 501
+		_cfg.buffer_size = 550_450_000 if self.cfg.task in ['mt80', 'mtgrab15'] else 345_690_000
 		_cfg.steps = _cfg.buffer_size
 		self.buffer = Buffer(_cfg)
 		for fp in tqdm(fps, desc='Loading data'):
 			td = torch.load(fp)
-			assert td.shape[1] == _cfg.episode_length, \
+			try:
+				assert td.shape[1] == _cfg.episode_length, \
+				f'Expected episode length {td.shape[1]} to match config episode length {_cfg.episode_length}, ' \
+				f'please double-check your config.'
+			except IndexError:
+				td.shape = td['task'].shape
+				assert td.shape[1] == _cfg.episode_length, \
 				f'Expected episode length {td.shape[1]} to match config episode length {_cfg.episode_length}, ' \
 				f'please double-check your config.'
 			for i in range(len(td)):
