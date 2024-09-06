@@ -2,42 +2,42 @@ absl-py==2.1.0
 addict==2.4.0
 aiohttp==3.9.5
 aiosignal==1.3.1
-anaconda-anon-usage @ file:///croot/anaconda-anon-usage_1710965072196/work
+anaconda-anon-usage
 antlr4-python3-runtime==4.9.3
-archspec @ file:///croot/archspec_1709217642129/work
-asttokens @ file:///opt/conda/conda-bld/asttokens_1646925590279/work
+archspec
+asttokens
 astunparse==1.6.3
 async-timeout==4.0.3
-attrs @ file:///croot/attrs_1695717823297/work
+attrs
 av==12.2.0
 beartype==0.18.5
-beautifulsoup4 @ file:///croot/beautifulsoup4-split_1681493039619/work
+beautifulsoup4
 bitmath==1.3.3.1
 blinker==1.8.2
-boltons @ file:///croot/boltons_1677628692245/work
+boltons
 box2d-py==2.3.5
-Brotli @ file:///tmp/abs_ecyw11_7ze/croots/recipe/brotli-split_1659616059936/work
-certifi @ file:///croot/certifi_1707229174982/work/certifi
-cffi @ file:///croot/cffi_1700254295673/work
-chardet @ file:///home/builder/ci_310/chardet_1640804867535/work
-charset-normalizer @ file:///tmp/build/80754af9/charset-normalizer_1630003229654/work
-click @ file:///croot/click_1698129812380/work
+Brotli
+certifi
+cffi 
+chardet
+charset-normalizer
+click
 cloudpickle==3.0.0
 colorama==0.4.6
 comm==0.2.2
-conda @ file:///croot/conda_1689269889729/work
-conda-build @ file:///croot/conda-build_1710789183177/work
-conda-content-trust @ file:///croot/conda-content-trust_1693490622020/work
-conda-libmamba-solver @ file:///croot/conda-libmamba-solver_1691418897561/work/src
-conda-package-handling @ file:///croot/conda-package-handling_1690999929514/work
-conda_index @ file:///croot/conda-index_1706633791028/work
-conda_package_streaming @ file:///croot/conda-package-streaming_1690987966409/work
+conda 
+conda-build 
+conda-content-trust 
+conda-libmamba-solver 
+conda-package-handling 
+conda_index 
+conda_package_streaming 
 ConfigArgParse==1.7
 contourpy==1.2.1
-cryptography @ file:///croot/cryptography_1710350347627/work
+cryptography 
 cycler==0.12.1
 Cython==0.29.37
--e git+https://github.com/Farama-Foundation/D4RL.git@71a9549f2091accff93eeff68f1f3ab2c0e0a288#egg=D4RL
+# -e git+https://github.com/Farama-Foundation/D4RL.git@71a9549f2091accff93eeff68f1f3ab2c0e0a288#egg=D4RL
 dash==2.17.1
 dash-core-components==2.0.0
 dash-html-components==2.0.0
@@ -48,7 +48,7 @@ deprecation==2.1.0
 DI-treetensor==0.4.1
 diffusers==0.29.2
 dill==0.3.8
-distro @ file:///croot/distro_1701455004953/work
+distro 
 dm-control==1.0.14
 dm-env==1.6
 dm-tree==0.1.8
@@ -57,23 +57,23 @@ docker-pycreds==0.4.0
 easydict==1.13
 enum-tools==0.12.0
 etils==1.7.0
-exceptiongroup @ file:///croot/exceptiongroup_1706031385326/work
-executing @ file:///opt/conda/conda-bld/executing_1646925071911/work
+exceptiongroup 
+executing 
 expecttest==0.2.1
 Farama-Notifications==0.0.4
 fasteners==0.19
 fastjsonschema==2.20.0
 ffmpeg==1.4
-filelock @ file:///croot/filelock_1700591183607/work
+filelock 
 Flask==3.0.3
 fonttools==4.51.0
 frozenlist==1.4.1
 fsspec==2024.3.1
--e git+https://github.com/zjowowen/GenerativeRL_Preview.git@e535d1073a962d774f6fada72bbab879f2c683b6#egg=GenerativeRL
+# -e git+https://github.com/zjowowen/GenerativeRL_Preview.git@e535d1073a962d774f6fada72bbab879f2c683b6#egg=GenerativeRL
 gitdb==4.0.11
 GitPython==3.1.43
 glfw==2.7.0
-gmpy2 @ file:///tmp/build/80754af9/gmpy2_1645455533097/work
+gmpy2 
 graphviz==0.20.3
 gym==0.23.1
 gym-notices==0.0.8
@@ -84,22 +84,22 @@ huggingface-hub==0.23.5
 hydra-core==1.3.2
 hydra-submitit-launcher==1.2.0
 hypothesis==6.100.1
-idna @ file:///croot/idna_1666125576474/work
+idna 
 imageio==2.34.1
 imageio-ffmpeg==0.5.1
 importlib_metadata==8.0.0
 importlib_resources==6.4.0
 ipykernel==6.29.4
-ipython @ file:///croot/ipython_1704833016303/work
+ipython 
 ipywidgets==8.1.2
 itsdangerous==2.2.0
-jedi @ file:///tmp/build/80754af9/jedi_1644315229345/work
-Jinja2 @ file:///croot/jinja2_1706733616596/work
+jedi 
+Jinja2 
 joblib==1.4.2
-jsonpatch @ file:///croot/jsonpatch_1710807507480/work
+jsonpatch 
 jsonpointer==2.1
-jsonschema @ file:///croot/jsonschema_1699041609003/work
-jsonschema-specifications @ file:///croot/jsonschema-specifications_1699032386549/work
+jsonschema 
+jsonschema-specifications 
 jupyter_client==8.6.1
 jupyter_core==5.7.2
 jupyterlab_widgets==3.0.10
@@ -108,33 +108,33 @@ kornia==0.7.3
 kornia_rs==0.1.5
 labmaze==1.0.6
 lark==1.1.9
-libarchive-c @ file:///tmp/build/80754af9/python-libarchive-c_1617780486945/work
-libmambapy @ file:///croot/mamba-split_1712091911343/work/libmambapy
+libarchive-c 
+libmambapy 
 lightning-utilities==0.11.2
 lockfile==0.12.2
 lxml==5.2.1
 markdown-it-py==3.0.0
-MarkupSafe @ file:///croot/markupsafe_1704205993651/work
+MarkupSafe 
 matplotlib==3.8.4
-matplotlib-inline @ file:///opt/conda/conda-bld/matplotlib-inline_1662014470464/work
+matplotlib-inline 
 mdurl==0.1.2
-menuinst @ file:///croot/menuinst_1706732933928/work
+menuinst 
 # Editable Git install with no remote (metaworld==2.0.0)
 -e /mnt/nfs/chenxinyan/Metaworld
 mjrl @ git+https://github.com/aravindr93/mjrl@3871d93763d3b49c4741e6daeaebbc605fe140dc
-mkl-fft @ file:///croot/mkl_fft_1695058164594/work
-mkl-random @ file:///croot/mkl_random_1695059800811/work
+mkl-fft 
+mkl-random 
 mkl-service==2.4.0
-more-itertools @ file:///croot/more-itertools_1700662129964/work
+more-itertools 
 moviepy==1.0.3
-mpmath @ file:///croot/mpmath_1690848262763/work
+mpmath 
 mujoco==2.3.7
 mujoco-py==2.1.2.14
 multidict==6.0.5
 nbformat==5.10.4
 nest-asyncio==1.6.0
-networkx @ file:///croot/networkx_1690561992265/work
-numpy @ file:///croot/numpy_and_numpy_base_1708638617955/work/dist/numpy-1.26.4-cp310-cp310-linux_x86_64.whl#sha256=d8cd837ed43e87f77e6efaa08e8de927ca030a1c9c5d04624432d6fb9a74a5ee
+networkx 
+numpy 
 nvidia-cublas-cu12==12.1.3.1
 nvidia-cuda-cupti-cu12==12.1.105
 nvidia-cuda-nvrtc-cu12==12.1.105
@@ -153,107 +153,107 @@ opencv-contrib-python==4.10.0.84
 opencv-python==4.10.0.84
 optree==0.11.0
 orjson==3.10.7
-packaging @ file:///croot/packaging_1710807400464/work
+packaging 
 pandas==2.2.2
-parso @ file:///opt/conda/conda-bld/parso_1641458642106/work
+parso 
 pastel==0.2.1
 patchelf==0.17.2.1
-pexpect @ file:///tmp/build/80754af9/pexpect_1605563209008/work
-pillow @ file:///croot/pillow_1707233021655/work
-pkginfo @ file:///croot/pkginfo_1679431160147/work
-platformdirs @ file:///croot/platformdirs_1692205439124/work
+pexpect 
+pillow 
+pkginfo 
+platformdirs 
 plotly==5.24.0
-pluggy @ file:///tmp/build/80754af9/pluggy_1648024709248/work
+pluggy 
 poethepoet==0.10.0
 POT==0.9.4
 pretty-errors==1.2.25
 proglog==0.1.10
-prompt-toolkit @ file:///croot/prompt-toolkit_1704404351921/work
+prompt-toolkit 
 protobuf==5.26.1
-psutil @ file:///opt/conda/conda-bld/psutil_1656431268089/work
-ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
-pure-eval @ file:///opt/conda/conda-bld/pure_eval_1646925070566/work
+psutil 
+ptyprocess 
+pure-eval 
 pybullet==3.2.6
-pycosat @ file:///croot/pycosat_1696536503704/work
-pycparser @ file:///tmp/build/80754af9/pycparser_1636541352034/work
+pycosat 
+pycparser 
 pyg-lib==0.4.0+pt24cu121
 pygame==2.1.0
-Pygments @ file:///croot/pygments_1684279966437/work
+Pygments 
 PyOpenGL==3.1.7
-pyOpenSSL @ file:///croot/pyopenssl_1708380408460/work
+pyOpenSSL 
 pyparsing==3.1.2
 pyquaternion==0.9.9
-PySocks @ file:///home/builder/ci_310/pysocks_1640793678128/work
+PySocks 
 python-dateutil==2.9.0.post0
 python-etcd==0.4.5
 pytimeparse==1.1.8
 pytorch-lightning==2.2.4
-pytz @ file:///croot/pytz_1695131579487/work
-PyYAML @ file:///croot/pyyaml_1698096049011/work
+pytz 
+PyYAML 
 pyzmq==26.0.3
-referencing @ file:///croot/referencing_1699012038513/work
+referencing 
 regex==2024.5.15
-requests @ file:///croot/requests_1707355572290/work
+requests 
 retrying==1.3.4
 rich==13.7.1
-rpds-py @ file:///croot/rpds-py_1698945930462/work
-ruamel.yaml @ file:///croot/ruamel.yaml_1666304550667/work
-ruamel.yaml.clib @ file:///croot/ruamel.yaml.clib_1666302247304/work
+rpds-py 
+ruamel.yaml 
+ruamel.yaml.clib 
 safetensors==0.4.3
 sapien==2.2.2
 scikit-learn==1.4.2
 scipy==1.13.0
 sentry-sdk==2.10.0
 setproctitle==1.3.3
-six @ file:///tmp/build/80754af9/six_1644875935023/work
+six 
 smmap==5.0.1
 sortedcontainers==2.4.0
-soupsieve @ file:///croot/soupsieve_1696347547217/work
-stack-data @ file:///opt/conda/conda-bld/stack_data_1646927590127/work
+soupsieve 
+stack-data 
 submitit==1.5.1
-sympy @ file:///croot/sympy_1701397643339/work
+sympy 
 tenacity==9.0.0
 tensordict==0.5.0
 termcolor==2.4.0
 threadpoolctl==3.5.0
-tomli @ file:///opt/conda/conda-bld/tomli_1657175507142/work
+tomli 
 tomlkit==0.12.5
-toolz @ file:///croot/toolz_1667464077321/work
-torch==2.4.0
-torch_cluster==1.6.3+pt24cu121
+toolz 
+# torch==2.4.0
+# torch_cluster==1.6.3+pt24cu121
 torch_geometric==2.5.3
-torch_scatter==2.1.2+pt24cu121
-torch_sparse==0.6.18+pt24cu121
-torch_spline_conv==1.2.2+pt24cu121
+# torch_scatter==2.1.2+pt24cu121
+# torch_sparse==0.6.18+pt24cu121
+# torch_spline_conv==1.2.2+pt24cu121
 torchaudio==2.3.0
 torchcde==0.2.5
 torchdiffeq==0.2.3
--e git+https://github.com/DiffEqML/torchdyn.git@95cc74b0e35330b03d2cd4d875df362a93e1b5ea#egg=torchdyn
+# -e git+https://github.com/DiffEqML/torchdyn.git@95cc74b0e35330b03d2cd4d875df362a93e1b5ea#egg=torchdyn
 torchelastic==0.2.2
 torchmetrics==1.4.0
 torchode==0.2.0
 torchrl==0.5.0
 torchsde==0.2.6
 torchtyping==0.1.4
-torchvision @ file:///mnt/nfs/chenxinyan/torchvision-0.19.0%2Bcu121-cp310-cp310-linux_x86_64.whl#sha256=5ee103c7eb47f8b08837e0e48b178f7ecc91d769d2b61240b90cb5aa2d06ce77
+torchvision 
 tornado==6.4
-tqdm @ file:///croot/tqdm_1679561862951/work
-traitlets @ file:///croot/traitlets_1671143879854/work
+tqdm 
+traitlets 
 trampoline==0.1.2
 transforms3d==0.4.2
 treevalue==1.4.12
 trimesh==4.4.8
 triton==3.0.0
-truststore @ file:///croot/truststore_1695244293384/work
+truststore 
 typeguard==4.3.0
 types-dataclasses==0.6.6
 typing_extensions==4.11.0
 tzdata==2024.1
-urllib3 @ file:///croot/urllib3_1707770551213/work
+urllib3 
 wandb==0.17.4
-wcwidth @ file:///Users/ktietz/demo/mc3/conda-bld/wcwidth_1629357192024/work
+wcwidth 
 Werkzeug==3.0.4
 widgetsnbextension==4.0.10
 yarl==1.9.4
 zipp==3.18.1
-zstandard @ file:///croot/zstandard_1677013143055/work
+zstandard 

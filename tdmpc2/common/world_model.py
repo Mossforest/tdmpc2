@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from common import layers, math, init
 from grl.generative_models.conditional_flow_model.independent_conditional_flow_model import (
-    IndependentConditionalFlowModel,
+	IndependentConditionalFlowModel,
 )
 from easydict import EasyDict
 
@@ -184,43 +184,7 @@ class WorldModel_Flow(nn.Module):
 		super().__init__()
 		self.cfg = cfg
 
-		self.flow_model_config = EasyDict(dict(
-            device=torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu"),
-            x_size=[cfg.latent_dim],
-            alpha=1.0,
-            solver=dict(
-                type="ODESolver",
-                args=dict(
-                    library="torchdiffeq_adjoint",
-                ),
-            ),
-            path=dict(
-                sigma=0.1,
-            ),
-            model=dict(
-                type="velocity_function",
-                args=dict(
-                    t_encoder=dict(
-						type="GaussianFourierProjectionTimeEncoder",
-						args=dict(
-							embed_dim=32,
-							scale=30.0,
-						),
-					),
-                    backbone=dict(
-                        type="TemporalSpatialResidualNet",
-                        args=dict(
-                            hidden_sizes=[512, 256, 128],
-                            output_dim=cfg.latent_dim,
-                            t_dim=32,
-							condition_dim=cfg.action_dim + cfg.task_dim,
-							condition_hidden_dim=32,
-							t_condition_hidden_dim=128,
-                        ),
-                    ),
-                ),
-            ),
-		))
+		self.flow_model_config = self.grl_config_dict(cfg)
 
 		if cfg.multitask:
 			self._task_emb = nn.Embedding(len(cfg.tasks), cfg.task_dim, max_norm=1)
@@ -383,3 +347,105 @@ class WorldModel_Flow(nn.Module):
 		Q1, Q2 = math.two_hot_inv(Q1, self.cfg), math.two_hot_inv(Q2, self.cfg)
 		return torch.min(Q1, Q2) if return_type == 'min' else (Q1 + Q2) / 2
 
+	def grl_config_dict(self, cfg):
+		flow_model_dict = {
+			'unet': EasyDict(dict(
+				device=torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu"),
+				x_size=[cfg.latent_dim],
+				alpha=1.0,
+				solver=dict(
+					type="ODESolver",
+					args=dict(
+						library="torchdiffeq_adjoint",
+					),
+				),
+				path=dict(
+					sigma=0.1,
+				),
+				model=dict(
+					type="velocity_function",
+					args=dict(
+						t_encoder=dict(
+							type="GaussianFourierProjectionTimeEncoder",
+							args=dict(
+								embed_dim=32,
+								scale=30.0,
+							),
+						),
+						backbone=dict(
+							type="TemporalSpatialResidualNet",
+							args=dict(
+								hidden_sizes=[512, 256, 128],
+								output_dim=cfg.latent_dim,
+								t_dim=32,
+								condition_dim=cfg.action_dim + cfg.task_dim,
+								condition_hidden_dim=32,
+								t_condition_hidden_dim=128,
+							),
+						),
+					),
+				),
+			)),
+			
+			
+			'gnn': EasyDict(dict(
+				device=torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu"),
+				x_size=cfg.latent_dim,
+				alpha=1.0,
+				solver=dict(
+					type="ODESolver",
+					args=dict(
+						library="torchdyn",
+					),
+				),
+				path=dict(
+					sigma=0.1,
+				),
+				model=dict(
+					type="velocity_function",
+					args=dict(
+						t_encoder = dict(
+							type="GaussianFourierProjectionTimeEncoder",
+							args=dict(
+								embed_dim=32,
+								scale=30.0,
+							),
+						),
+						condition_encoder = dict(
+							type="MultiMLPEncoder",
+							args=dict(
+								action_encoder=dict(
+									hidden_sizes=[cfg.action_dim] + [cfg.transition_hidden_dim] * 2,
+									output_size=cfg.transition_hidden_dim,
+									activation='relu',
+								),
+								background_encoder=dict(
+									hidden_sizes=[cfg.task_dim] + [cfg.transition_hidden_dim] * 2,
+									output_size=cfg.transition_hidden_dim,
+									activation='relu',
+								)
+							),
+						),
+						x_encoder = dict(
+							type="MLPEncoder",
+							args=dict(
+								hidden_sizes=[cfg.latent_dim] + [cfg.transition_hidden_dim] * 2,
+								output_size=cfg.transition_hidden_dim,
+								activation='relu',
+							),
+						),
+						backbone=dict(
+							type="HeterogeneousGraphModel",
+							args=dict(
+								hidden_sizes=[512, 256, 128],
+								output_dim=cfg.latent_dim,
+								device=torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu"),
+							),
+						),
+					),
+				),
+			),
+		),
+		}
+		return flow_model_dict[cfg.flow_model]
+		

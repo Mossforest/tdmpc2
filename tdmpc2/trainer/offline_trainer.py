@@ -55,7 +55,7 @@ class OfflineTrainer(Trainer):
 		# Create buffer for sampling
 		_cfg = deepcopy(self.cfg)
 		_cfg.episode_length = 101 if self.cfg.task in ['mt80', 'mtgrab15'] else 501
-		_cfg.buffer_size = 550_450_000 if self.cfg.task in ['mt80', 'mtgrab15'] else 345_690_000
+		_cfg.buffer_size = 1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
 		_cfg.steps = _cfg.buffer_size
 		self.buffer = Buffer(_cfg)
 		for fp in tqdm(fps, desc='Loading data'):
@@ -76,20 +76,20 @@ class OfflineTrainer(Trainer):
 		
 		print(f'Training agent for {self.cfg.steps} iterations...')
 		metrics = {}
-		for i in range(self.cfg.steps):
+		for i in tqdm(range(self.cfg.steps), desc='Training'):
 
 			# Update agent
 			train_metrics = self.agent.update(self.buffer)
 
 			# Evaluate agent periodically
-			if i % self.cfg.eval_freq == 0 or i % 10_000 == 0:
+			if i % self.cfg.eval_freq == 0 or i % 10_000 == 0 or i == self.cfg.steps-1:
 				metrics = {
 					'iteration': i,
 					'total_time': time() - self._start_time,
 				}
 				metrics.update(train_metrics)
-				if i % self.cfg.eval_freq == 0:
-					metrics.update(self.eval())
+				if i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1:
+					# metrics.update(self.eval())
 					self.logger.pprint_multitask(metrics, self.cfg)
 					if i > 0:
 						self.logger.save_agent(self.agent, identifier=f'{i}')

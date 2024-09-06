@@ -2,12 +2,20 @@ defaults:
     - override hydra/launcher: submitit_local
 
 # environment
-task: dog-run
+settings: full_small
+task: mtgrab15
 obs: state
+task_name: null
+friction:
+  - 0.1
+  # - 0.5
+  # - 1
+  # - 1.5
+  # - 2
 
 # evaluation
 checkpoint: ???
-eval_episodes: 10
+eval_episodes: 100
 eval_freq: 50000
 
 # training
@@ -25,8 +33,8 @@ discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
 buffer_size: 1_000_000
-exp_name: default
-data_dir: ???
+exp_name: flow-offline
+data_dir: /mnt/nfs/chenxinyan/tdmpc2/data/full_small/0.1
 
 # planning
 mpc: true
@@ -50,7 +58,7 @@ vmin: -10
 vmax: +10
 
 # architecture
-model_size: ???
+model_size: 5
 num_enc_layers: 2
 enc_dim: 256
 num_channels: 32
@@ -60,13 +68,15 @@ task_dim: 96
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
+flow_model: unet
+transition_hidden_dim: 512
 
 # logging
 wandb_project: ???
 wandb_entity: ???
 wandb_silent: false
 disable_wandb: true
-save_csv: true
+save_csv: false
 
 # misc
 save_video: true

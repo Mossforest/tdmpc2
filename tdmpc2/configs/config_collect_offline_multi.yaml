@@ -8,7 +8,7 @@ eval_task: mtgrab15
 obs: state
 task_name: null
 friction:
-  - 0.1
+  # - 0.1
   # - 0.5
   # - 1
   # - 1.5

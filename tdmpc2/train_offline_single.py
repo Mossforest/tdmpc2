@@ -24,7 +24,8 @@ from common.logger import Logger
 torch.backends.cudnn.benchmark = True
 
 
-def train(cfg: dict, friction):
+@hydra.main(config_name='config_train_offline_single', config_path='configs')
+def train(cfg: dict):
 	"""
 	Script for training single-task / multi-task TD-MPC2 agents.
 
@@ -61,28 +62,5 @@ def train(cfg: dict, friction):
 	print('\nTraining completed successfully')
 
 
-@hydra.main(config_name='config_train_offline_single', config_path='configs')
-def train_single(cfg: dict):
-
-    # XML文件路径
-    xml_file_path = '/mnt/nfs/chenxinyan/Metaworld/metaworld/envs/assets_v2/objects/assets/xyz_base.xml'
-    frictions = [str(fric)+" 0.1 0.002" for fric in cfg.friction]
-    for idx, friction in enumerate(frictions):
-        # 解析XML文件
-        # tree = ET.parse(xml_file_path)
-        # root = tree.getroot()
-        # for geom in root.findall('.//geom'):
-        #     # 检查geom元素是否有name属性且值为'leftpad_geom'
-        #     if 'name' in geom.attrib and geom.get('name') in ['leftpad_geom', 'rightpad_geom']:
-        #         # 如果friction属性存在，则更改它
-        #         if 'friction' in geom.attrib:
-        #             geom.set('friction', friction)
-        # # 保存修改后的XML文件
-        # tree.write(xml_file_path)
-        
-        train(cfg, cfg.friction[idx])
-        print(f'\n\n ========== done: friction {cfg.friction[idx]} ==========')
-
-
 if __name__ == '__main__':
-	train_single()
+	train()

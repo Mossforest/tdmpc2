@@ -1,6 +1,6 @@
 import torch
 from tensordict.tensordict import TensorDict
-from torchrl.data.replay_buffers import ReplayBuffer, LazyTensorStorage
+from torchrl.data.replay_buffers import ReplayBuffer, LazyTensorStorage, LazyMemmapStorage
 from torchrl.data.replay_buffers.samplers import SliceSampler
 
 
@@ -58,10 +58,11 @@ class Buffer():
 		total_bytes = bytes_per_step*self._capacity
 		print(f'Storage required: {total_bytes/1e9:.2f} GB')
 		# Heuristic: decide whether to use CUDA or CPU memory
-		storage_device = 'cuda' if 2.5*total_bytes < mem_free else 'cpu'
+		storage_device = 'cpu' # 'cuda' if 2.5*total_bytes < mem_free else 'cpu'
 		print(f'Using {storage_device.upper()} memory for storage.')
 		return self._reserve_buffer(
-			LazyTensorStorage(self._capacity, device=torch.device(storage_device))
+			# LazyTensorStorage(self._capacity, device=torch.device(storage_device))
+			LazyMemmapStorage(self._capacity, device=torch.device(storage_device))
 		)
 
 	def _to_device(self, *args, device=None):
