@@ -157,11 +157,11 @@ def evaluate(cfg: dict, friction):
 
 
 
-@hydra.main(config_name='config_collect_offline_multi', config_path='configs')
+@hydra.main(config_name='config_evaluate_default', config_path='configs')
 def edit_and_evaluate(cfg: dict):
 
     # XML文件路径
-    xml_file_path = '/mnt/nfs/chenxinyan/Metaworld/metaworld/envs/assets_v2/objects/assets/xyz_base.xml'
+    xml_file_path = cfg.metaworld_path + '/metaworld/envs/assets_v2/objects/assets/xyz_base.xml'
     frictions = [str(fric)+" 0.1 0.002" for fric in cfg.friction]
     for idx, friction in enumerate(frictions):
         # 解析XML文件

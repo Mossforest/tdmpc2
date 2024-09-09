@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
+from tensordict import TensorDict
 
 from common import math
 from common.scale import RunningScale
@@ -528,7 +529,12 @@ class TDMPC2_Flow:
 			z0 = z
 			z = self.model.next(z, action[t], task)
 			consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
-			flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=z0.detach(), x1=next_z[t], condition=action[t]) * self.cfg.rho**t
+			if self.model.cfg.flow_model == 'unet':
+				condition_t = self.model.task_emb(action[t], task)
+			else:
+				task_emb = self.model._task_emb(task.long())
+				condition_t = TensorDict({'action': action[t], 'background': task_emb})
+			flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=z0.detach(), x1=next_z[t], condition=condition_t) * self.cfg.rho**t
 			zs[t+1] = z
 
 		# Predictions

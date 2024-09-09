@@ -3,6 +3,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
 from common import layers, math, init
 from grl.generative_models.conditional_flow_model.independent_conditional_flow_model import (
@@ -277,12 +278,17 @@ class WorldModel_Flow(nn.Module):
 		"""
 		Predicts the next latent state given the current latent state and action.
 		"""
-		if self.cfg.multitask:
-			z = self.task_emb(z, task)
+		# if self.cfg.multitask:
+		# 	z = self.task_emb(z, task)
 		# z = torch.cat([z, a], dim=-1)
 		# return self._dynamics(z)
+		if self.cfg.flow_model == 'unet':
+			condition = self.task_emb(a, task)
+		else:
+			task_emb = self._task_emb(task.long())
+			condition = TensorDict({'action': a, 'background': task_emb})
 		t_span = torch.linspace(0.0, 1.0, 32)
-		z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=a, with_grad=True)
+		z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=condition, with_grad=True)
 		return z_
 
 	def reward(self, z, a, task):
