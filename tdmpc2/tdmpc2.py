@@ -609,7 +609,16 @@ class TDMPC2_Flow_MultiGPU:
 			[self._get_discount(ep_len) for ep_len in cfg.episode_lengths], device='cuda'
 		) if self.cfg.multitask else self._get_discount(cfg.episode_length)
 
-		self.model = accelerator.prepare(self.model)
+		# self.model._encoder = accelerator.prepare(self.model._encoder)
+		for key, module in self.model._encoder.items():
+			self.model._encoder[key] = accelerator.prepare(module)
+
+		self.model._dynamics.model = accelerator.prepare(self.model._dynamics.model)
+		self.model._reward = accelerator.prepare(self.model._reward)
+		self.model._Qs = accelerator.prepare(self.model._Qs)
+		self.model._task_emb = accelerator.prepare(self.model._task_emb)
+		self.model._pi = accelerator.prepare(self.model._pi)
+
 		self.optim = accelerator.prepare(self.optim)
 		self.pi_optim = accelerator.prepare(self.pi_optim)
 

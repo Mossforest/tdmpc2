@@ -49,8 +49,10 @@ def train(cfg: dict):
 	set_seed(cfg.seed)
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
 
-	ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-	accelerator = Accelerator(log_with="wandb", kwargs_handlers=[ddp_kwargs])
+	#ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+	#accelerator = Accelerator(log_with="wandb", kwargs_handlers=[ddp_kwargs])
+
+	accelerator = Accelerator()
 
 	trainer_cls = MultiGPUOfflineTrainer if cfg.multitask else MultiGPUOnlineTrainer
 	trainer = trainer_cls(
