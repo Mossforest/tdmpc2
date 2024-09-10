@@ -14,10 +14,11 @@ from common.parser import parse_cfg
 from common.seed import set_seed
 from common.buffer import Buffer
 from envs import make_env
-from tdmpc2 import TDMPC2, TDMPC2_Flow
-from trainer.offline_trainer import OfflineTrainer
-from trainer.online_trainer import OnlineTrainer
+from tdmpc2 import TDMPC2, TDMPC2_Flow, TDMPC2_Flow_MultiGPU
+from trainer.offline_trainer import MultiGPUOfflineTrainer
+from trainer.online_trainer import MultiGPUOnlineTrainer
 from common.logger import Logger
+from accelerate import Accelerator, DistributedDataParallelKwargs
 
 torch.backends.cudnn.benchmark = True
 
@@ -48,15 +49,18 @@ def train(cfg: dict):
 	set_seed(cfg.seed)
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
 
-	trainer_cls = OfflineTrainer if cfg.multitask else OnlineTrainer
+	ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+	accelerator = Accelerator(log_with="wandb", kwargs_handlers=[ddp_kwargs])
+
+	trainer_cls = MultiGPUOfflineTrainer if cfg.multitask else MultiGPUOnlineTrainer
 	trainer = trainer_cls(
 		cfg=cfg,
 		env=make_env(cfg),
-		agent=TDMPC2_Flow(cfg),
+		agent=TDMPC2_Flow_MultiGPU(cfg, accelerator),
 		buffer=Buffer(cfg),
 		logger=Logger(cfg),
 	)
-	trainer.train()
+	trainer.train(accelerator)
 	print('\nTraining completed successfully')
 
 

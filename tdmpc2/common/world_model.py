@@ -181,11 +181,11 @@ class WorldModel_Flow(nn.Module):
 	Can be used for both single-task and multi-task experiments.
 	"""
 
-	def __init__(self, cfg):
+	def __init__(self, cfg, device):
 		super().__init__()
 		self.cfg = cfg
 
-		self.flow_model_config = self.grl_config_dict(cfg)
+		self.flow_model_config = self.grl_config_dict(cfg, device)
 
 		if cfg.multitask:
 			self._task_emb = nn.Embedding(len(cfg.tasks), cfg.task_dim, max_norm=1)
@@ -353,10 +353,10 @@ class WorldModel_Flow(nn.Module):
 		Q1, Q2 = math.two_hot_inv(Q1, self.cfg), math.two_hot_inv(Q2, self.cfg)
 		return torch.min(Q1, Q2) if return_type == 'min' else (Q1 + Q2) / 2
 
-	def grl_config_dict(self, cfg):
+	def grl_config_dict(self, cfg, device):
 		flow_model_dict = {
 			'unet': EasyDict(dict(
-				device=torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu"),
+				device=device,
 				x_size=[cfg.latent_dim],
 				alpha=1.0,
 				solver=dict(
@@ -395,7 +395,7 @@ class WorldModel_Flow(nn.Module):
 			
 			
 			'gnn': EasyDict(dict(
-				device=torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu"),
+				device=device,
 				x_size=cfg.latent_dim,
 				alpha=1.0,
 				solver=dict(

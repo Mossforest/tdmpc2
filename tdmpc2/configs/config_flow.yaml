@@ -34,7 +34,7 @@ discount_min: 0.95
 discount_max: 0.995
 buffer_size: 1_000_000
 exp_name: flow-offline
-data_dir: /mnt/nfs/chenxinyan/tdmpc2/data/full_small/0.1
+data_dir: /root/Github/Mossforest/tdmpc2/data
 
 # planning
 mpc: true
