@@ -15,8 +15,8 @@ friction:
   # - 2
 
 # evaluation
-checkpoint: /mnt/nfs/chenxinyan/tdmpc2/source/default-5M-250000.pt
-eval_episodes: 10
+checkpoint: /mnt/nfs/chenxinyan/tdmpc2/logs/mtgrab15/1/flow-gnn/models/13500.pt
+eval_episodes: 100
 eval_freq: 50000
 metaworld_path: /mnt/nfs/chenxinyan/Metaworld
 
@@ -35,7 +35,7 @@ discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
 buffer_size: 1_000_000
-exp_name: default
+exp_name: flow-gnn
 data_dir: ???
 
 # planning
@@ -70,6 +70,8 @@ task_dim: 96
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
+flow_model: gnn
+transition_hidden_dim: 512
 
 # logging
 wandb_project: ???

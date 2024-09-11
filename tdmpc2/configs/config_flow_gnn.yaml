@@ -16,7 +16,7 @@ friction:
 # evaluation
 checkpoint: ???
 eval_episodes: 100
-eval_freq: 50000
+eval_freq: 500
 
 # training
 steps: 10_000_000
@@ -72,8 +72,9 @@ flow_model: gnn
 transition_hidden_dim: 512
 
 # logging
-wandb_project: ???
-wandb_entity: ???
+wandb_project: tdmpc2-metaworld-mtgrab15
+wandb_sub_project: flow-gnn
+wandb_entity: moss_chen
 wandb_silent: false
 disable_wandb: true
 save_csv: false

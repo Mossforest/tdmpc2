@@ -22,7 +22,7 @@ from common.logger import Logger
 torch.backends.cudnn.benchmark = True
 
 
-@hydra.main(config_name='config_flow_gnn', config_path='configs')
+@hydra.main(config_name='config_flow', config_path='configs')
 def train(cfg: dict):
 	"""
 	Script for training single-task / multi-task TD-MPC2 agents.
@@ -48,7 +48,7 @@ def train(cfg: dict):
 	set_seed(cfg.seed)
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
 
-	trainer_cls = OfflineTrainer if cfg.multitask else OnlineTrainer
+	trainer_cls = OfflineTrainer
 	trainer = trainer_cls(
 		cfg=cfg,
 		env=make_env(cfg),
