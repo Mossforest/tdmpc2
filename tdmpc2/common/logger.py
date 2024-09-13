@@ -115,6 +115,7 @@ class Logger:
 		self._eval = []
 		print_run(cfg)
 		self.project = cfg.get("wandb_project", "none")
+		self.sub_project = cfg.get("wandb_sub_project", "none")
 		self.entity = cfg.get("wandb_entity", "none")
 		if cfg.disable_wandb or self.project == "none" or self.entity == "none":
 			print(colored("Wandb disabled.", "blue", attrs=["bold"]))
@@ -129,7 +130,7 @@ class Logger:
 		wandb.init(
 			project=self.project,
 			entity=self.entity,
-			name=str(cfg.seed),
+			name=self.sub_project + str(cfg.seed),
 			group=self._group,
 			tags=cfg_to_group(cfg, return_list=True) + [f"seed:{cfg.seed}"],
 			dir=self._log_dir,

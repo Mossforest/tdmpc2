@@ -11,7 +11,8 @@ import hydra
 from termcolor import colored
 
 from common.parser import parse_cfg
-from common.seed import set_seed
+# from common.seed import set_seed
+from grl.utils import set_seed
 from common.buffer import Buffer
 from envs import make_env
 from tdmpc2 import TDMPC2, TDMPC2_Flow, TDMPC2_Flow_MultiGPU
@@ -46,13 +47,13 @@ def train(cfg: dict):
 	assert torch.cuda.is_available()
 	assert cfg.steps > 0, 'Must train for at least 1 step.'
 	cfg = parse_cfg(cfg)
-	set_seed(cfg.seed)
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
 
 	#ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
 	#accelerator = Accelerator(log_with="wandb", kwargs_handlers=[ddp_kwargs])
 
 	accelerator = Accelerator()
+	set_seed(cfg.seed + accelerator.process_index)
 
 	trainer_cls = MultiGPUOfflineTrainer if cfg.multitask else MultiGPUOnlineTrainer
 	trainer = trainer_cls(

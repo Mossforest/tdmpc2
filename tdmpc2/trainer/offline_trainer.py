@@ -55,7 +55,7 @@ class OfflineTrainer(Trainer):
 		# Create buffer for sampling
 		_cfg = deepcopy(self.cfg)
 		_cfg.episode_length = 101 if self.cfg.task in ['mt80', 'mtgrab15'] else 501
-		_cfg.buffer_size =  100 #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
+		_cfg.buffer_size =  self.cfg.buffer_size #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
 		_cfg.steps = _cfg.buffer_size
 		self.buffer = Buffer(_cfg)
 		for fp in tqdm(fps, desc='Loading data'):
@@ -88,8 +88,8 @@ class OfflineTrainer(Trainer):
 					'total_time': time() - self._start_time,
 				}
 				metrics.update(train_metrics)
-				if i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1:
-					# metrics.update(self.eval())
+				if self.cfg.eval_enable and (i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1):
+					metrics.update(self.eval())
 					self.logger.pprint_multitask(metrics, self.cfg)
 					if i > 0:
 						self.logger.save_agent(self.agent, identifier=f'{i}')
@@ -141,7 +141,7 @@ class MultiGPUOfflineTrainer(Trainer):
 		# Create buffer for sampling
 		_cfg = deepcopy(self.cfg)
 		_cfg.episode_length = 101 if self.cfg.task in ['mt80', 'mtgrab15'] else 501
-		_cfg.buffer_size =  100 #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
+		_cfg.buffer_size =  self.cfg.buffer_size #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
 		_cfg.steps = _cfg.buffer_size
 		self.buffer = Buffer(_cfg)
 		for fp in tqdm(fps, desc='Loading data'):
@@ -174,8 +174,8 @@ class MultiGPUOfflineTrainer(Trainer):
 					'total_time': time() - self._start_time,
 				}
 				metrics.update(train_metrics)
-				if i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1:
-					# metrics.update(self.eval())
+				if self.cfg.eval_enable and (i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1):
+					metrics.update(self.eval())
 					self.logger.pprint_multitask(metrics, self.cfg)
 					if i > 0:
 						self.logger.save_agent(self.agent, identifier=f'{i}')

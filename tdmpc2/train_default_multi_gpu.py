@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import os
-os.environ['MUJOCO_GL'] = 'egl'
+import sys
+os.environ['MUJOCO_GL'] = 'osmesa'
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -13,18 +14,20 @@ import hydra
 from termcolor import colored
 
 from common.parser import parse_cfg
-from common.seed import set_seed
+# from common.seed import set_seed
+from grl.utils import set_seed
 from common.buffer import Buffer
 from envs import make_env
-from tdmpc2 import TDMPC2
-from trainer.offline_trainer import OfflineTrainer
-from trainer.online_trainer import OnlineTrainer
+from tdmpc2 import TDMPC2, TDMPC2_Flow, TDMPC2_MultiGPU
+from trainer.offline_trainer import MultiGPUOfflineTrainer
+from trainer.online_trainer import MultiGPUOnlineTrainer
 from common.logger import Logger
+from accelerate import Accelerator, DistributedDataParallelKwargs
 
 torch.backends.cudnn.benchmark = True
 
 
-@hydra.main(config_name='config_train_offline_single', config_path='configs')
+@hydra.main(config_name='config_default', config_path='configs')
 def train(cfg: dict):
 	"""
 	Script for training single-task / multi-task TD-MPC2 agents.
@@ -47,18 +50,23 @@ def train(cfg: dict):
 	assert torch.cuda.is_available()
 	assert cfg.steps > 0, 'Must train for at least 1 step.'
 	cfg = parse_cfg(cfg)
-	set_seed(cfg.seed)
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
 
-	trainer_cls = OfflineTrainer
+	#ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+	#accelerator = Accelerator(log_with="wandb", kwargs_handlers=[ddp_kwargs])
+
+	accelerator = Accelerator()
+	set_seed(cfg.seed + accelerator.process_index)
+
+	trainer_cls = MultiGPUOfflineTrainer if cfg.multitask else MultiGPUOnlineTrainer
 	trainer = trainer_cls(
 		cfg=cfg,
 		env=make_env(cfg),
-		agent=TDMPC2(cfg),
+		agent=TDMPC2_MultiGPU(cfg, accelerator),
 		buffer=Buffer(cfg),
 		logger=Logger(cfg),
 	)
-	trainer.train()
+	trainer.train(accelerator)
 	print('\nTraining completed successfully')
 
 
