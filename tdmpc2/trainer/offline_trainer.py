@@ -174,9 +174,10 @@ class MultiGPUOfflineTrainer(Trainer):
 					'total_time': time() - self._start_time,
 				}
 				metrics.update(train_metrics)
-				if self.cfg.eval_enable and (i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1):
-					metrics.update(self.eval())
-					self.logger.pprint_multitask(metrics, self.cfg)
+				if i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1:
+					if self.cfg.eval_enable:
+						metrics.update(self.eval())
+						self.logger.pprint_multitask(metrics, self.cfg)
 					if i > 0:
 						self.logger.save_agent(self.agent, identifier=f'{i}')
 				self.logger.log(metrics, 'pretrain')

@@ -21,8 +21,7 @@ class TDMPC2:
 		self.device = torch.device('cuda')
 		self.model = WorldModel(cfg).to(self.device)
 		if cfg.pretrained_path:
-			state_dict = torch.load(cfg.pretrained_path)
-			self.model.load_state_dict(state_dict, strict=True)
+			self.load(cfg.pretrained_path)
 			print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
 		else:
 			print(colored('train from scratch', 'yellow', attrs=['bold']))
@@ -309,8 +308,7 @@ class TDMPC2_Flow:
 		self.device = torch.device('cuda')
 		self.model = WorldModel_Flow(cfg, self.device).to(self.device)
 		if cfg.pretrained_path:
-			state_dict = torch.load(cfg.pretrained_path)
-			self.model.load_state_dict(state_dict, strict=True)
+			self.load(cfg.pretrained_path)
 			print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
 		else:
 			print(colored('train from scratch', 'yellow', attrs=['bold']))
@@ -608,8 +606,7 @@ class TDMPC2_Flow_MultiGPU:
 		self.device = accelerator.device
 		self.model = WorldModel_Flow(cfg, self.device).to(self.device)
 		if cfg.pretrained_path:
-			state_dict = torch.load(cfg.pretrained_path)
-			self.model.load_state_dict(state_dict, strict=True)
+			self.load(cfg.pretrained_path)
 			print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
 		else:
 			print(colored('train from scratch', 'yellow', attrs=['bold']))
@@ -924,9 +921,8 @@ class TDMPC2_MultiGPU:
 		self.device = accelerator.device
 		self.model = WorldModel(cfg).to(self.device)
 		if cfg.pretrained_path:
-			state_dict = torch.load(cfg.pretrained_path)
-			self.model.load_state_dict(state_dict, strict=True)
-			print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
+			self.load(cfg.pretrained_path)
+			print(f'loaded pretrained model from', colored(cfg.pretrained_path, 'yellow', attrs=['bold']))
 		else:
 			print(colored('train from scratch', 'yellow', attrs=['bold']))
 		self.optim = torch.optim.Adam([
@@ -988,8 +984,23 @@ class TDMPC2_MultiGPU:
 		Args:
 			fp (str or dict): Filepath or state dict to load.
 		"""
+		def load_weights(weight):
+			# torch2.0版本以上支持torch.compile来跑模型，会快，但是compile还只支持linux系统
+			# compile后的模型存权重的时候层的名字前面会加上'_orig_mod.'
+			# 这段代码就是把这个删掉
+			# 传入模型的路径（.pth），返回权重，直接使用model.load_state_dict(weight)就能读进去
+			new_weight = weight.copy()
+			keys_list = list(weight.keys())
+			for key, orig_key in zip(keys_list, self.model.state_dict()):
+				if not key == orig_key:
+					if 'orig_mod.module.' in key:
+						del_key = key.replace('_orig_mod.module.', '')
+						new_weight[del_key] = weight[key]
+						del new_weight[key]
+			return new_weight
 		state_dict = fp if isinstance(fp, dict) else torch.load(fp)
-		self.model.load_state_dict(state_dict["model"])
+		new_weight = load_weights(state_dict["model"])
+		self.model.load_state_dict(new_weight)
 
 	@torch.no_grad()
 	def act(self, obs, t0=False, eval_mode=False, task=None):

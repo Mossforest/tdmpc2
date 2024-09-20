@@ -289,7 +289,7 @@ class WorldModel_Flow(nn.Module):
 			if task_emb.shape[0] == 1:
 				task_emb = task_emb.repeat(a.shape[0], 1)
 			condition = TensorDict({'action': a, 'background': task_emb})
-		t_span = torch.linspace(0.0, 1.0, 32) # 32)
+		t_span = torch.linspace(0.0, 1.0, 12) # 32)
 		z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=condition, with_grad=True)
 		return z_
 

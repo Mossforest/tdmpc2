@@ -8,13 +8,12 @@ obs: state
 task_name: null
 
 # evaluation
-checkpoint: null
+checkpoint: /root/tdmpc2/logs/mtgrab15/121/default-gpu-woeval/models
 eval_episodes: 1
 eval_freq: 50_000
-eval_enable: false
 
 # training
-steps: 1_250_000 # 10_000_000 / 8 
+steps: 10_000_000
 batch_size: 256
 reward_coef: 0.1
 value_coef: 0.1
@@ -67,15 +66,15 @@ simnorm_dim: 8
 
 # logging
 wandb_project: tdmpc2-mt15
-wandb_sub_project: default-gpu-woeval
+wandb_sub_project: default-gpu-woeval-eval
 wandb_entity: moss_chen
 wandb_silent: false
-disable_wandb: false
-save_csv: true
+disable_wandb: true
+save_csv: false
 
 # misc
 save_video: false
-save_agent: true
+save_agent: false
 save_dynamics: false
 dynamic_save_path: null
 seed: 121

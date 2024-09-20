@@ -2,18 +2,19 @@ defaults:
     - override hydra/launcher: submitit_local
 
 # environment
-settings: full_small
+settings: mt15
 task: mtgrab15
 obs: state
 task_name: null
 
 # evaluation
-checkpoint: ???
-eval_episodes: 100
-eval_freq: 50000
+checkpoint: null
+eval_episodes: 1
+eval_freq: 50_000
+eval_enable: false
 
 # training
-steps: 10_000_000
+steps: 1_250_000 # 10_000_000 / 8 
 batch_size: 256
 reward_coef: 0.1
 value_coef: 0.1
@@ -26,9 +27,10 @@ tau: 0.01
 discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
-buffer_size: 1_000_000
-exp_name: flow-offline
-data_dir: /root/Github/Mossforest/tdmpc2/data
+buffer_size: 600_000 # 6 200_000
+exp_name: flow-gpu
+data_dir: /root/tdmpc2/data/mt15
+pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
 
 # planning
 mpc: true
@@ -66,16 +68,19 @@ flow_model: unet
 transition_hidden_dim: 512
 
 # logging
-wandb_project: ???
-wandb_entity: ???
+wandb_project: tdmpc2-mt15
+wandb_sub_project: flow-gpu
+wandb_entity: moss_chen
 wandb_silent: false
-disable_wandb: true
-save_csv: false
+disable_wandb: false
+save_csv: true
 
 # misc
 save_video: false
 save_agent: true
-seed: 1
+save_dynamics: false
+dynamic_save_path: null
+seed: 121
 
 # convenience
 work_dir: ???
