@@ -70,7 +70,7 @@ wandb_project: tdmpc2-mt15
 wandb_sub_project: default-gpu-woeval
 wandb_entity: moss_chen
 wandb_silent: false
-disable_wandb: false
+disable_wandb: true
 save_csv: true
 
 # misc
