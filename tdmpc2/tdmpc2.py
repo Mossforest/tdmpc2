@@ -521,7 +521,7 @@ class TDMPC2_Flow:
         """
         obs, action, reward, task = buffer.sample()
     
-        # Compute targets
+        # Compute targets only (no use of next_z)
         with torch.no_grad():
             next_z = self.model.encode(obs[1:], task)
             td_targets = self._td_target(next_z, reward, task)
@@ -530,25 +530,23 @@ class TDMPC2_Flow:
         self.optim.zero_grad(set_to_none=True)
         self.model.train()
 
-        # Latent rollout
-        zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
-        z = self.model.encode(obs[0], task)
-        zs[0] = z
+        # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
+        states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.state_dim, device=self.device)
+        # z = self.model.encode(obs[0], task)
+        # zs[0] = z
+        s = obs[0]
+        states[0] = s
         consistency_loss = 0
         flow_matching_loss = 0
         for t in range(self.cfg.horizon):
-            z0 = z
-            z = self.model.next(z, action[t], task)
-            consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
-            if self.model.cfg.flow_model == 'unet':
-                condition_t = self.model.task_emb(action[t], task)
-            else:
-                task_emb = self.model._task_emb(task.long())
-                condition_t = TensorDict({'action': action[t], 'background': task_emb})
-            flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=z0.detach(), x1=next_z[t], condition=condition_t) * self.cfg.rho**t
-            zs[t+1] = z
+            s0 = s
+            s = self.model.next(s0, action[t])  # raw
+            consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
+            flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
+            states[t+1] = s
 
         # Predictions
+        zs = self.model.encode(states, task)
         _zs = zs[:-1]
         qs = self.model.Q(_zs, action, task, return_type='all')
         reward_preds = self.model.reward(_zs, action, task)
@@ -567,7 +565,7 @@ class TDMPC2_Flow:
             self.cfg.consistency_coef * consistency_loss +
             self.cfg.reward_coef * reward_loss +
             self.cfg.value_coef * value_loss +
-            1 * flow_matching_loss
+            self.cfg.flow_coef * flow_matching_loss
         )
 
         # Update model
@@ -593,6 +591,105 @@ class TDMPC2_Flow:
             "grad_norm": float(grad_norm),
             "pi_scale": float(self.scale.value),
         }
+
+    def transition_update(self, buffer):
+        """
+        Only update transition model (flow model). Corresponds to one iteration of model learning.
+        
+        Args:
+            buffer (common.buffer.Buffer): Replay buffer.
+        
+        Returns:
+            dict: Dictionary of training statistics.
+        """
+        obs, action, reward, task = buffer.sample()
+
+        # Prepare for update
+        self.optim.zero_grad(set_to_none=True)
+        self.model.train_transition()
+
+        # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
+        states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.state_dim, device=self.device)
+        # z = self.model.encode(obs[0], task)
+        # zs[0] = z
+        s = obs[0]
+        states[0] = s
+        consistency_loss = 0
+        flow_matching_loss = 0
+        for t in range(self.cfg.horizon):
+            s0 = s
+            s = self.model.next(s0, action[t])  # raw
+            consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
+            # https://github.com/opendilab/GenerativeRL/blob/3e1172ae0cbe18f311d40926d1e485b135a8e92c/grl/generative_models/model_functions/velocity_function.py#L220
+            flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
+            states[t+1] = s
+        
+        consistency_loss *= (1/self.cfg.horizon)
+        flow_matching_loss *= (1/self.cfg.horizon)
+        total_loss = (
+            self.cfg.consistency_coef * consistency_loss +
+            self.cfg.flow_coef * flow_matching_loss
+        )
+
+        # Update model
+        total_loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip_norm)
+        self.optim.step()
+
+        # Return training statistics
+        self.model.eval()
+        return {
+            "consistency_loss": float(consistency_loss.mean().item()),
+            "total_loss": float(total_loss.mean().item()),
+            "flow_matching_loss": float(flow_matching_loss.mean().item()),
+            "grad_norm": float(grad_norm),
+        }
+
+
+    def transition_eval(self, buffer):
+        """
+        Only eval transition model (flow model). Corresponds to one iteration of model learning.
+        
+        Args:
+            buffer (common.buffer.Buffer): Replay buffer.
+        
+        Returns:
+            dict: Dictionary of training statistics.
+        """
+        obs, action, reward, task = buffer.sample()
+        self.model.eval()
+
+        # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
+        states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.state_dim, device=self.device)
+        # z = self.model.encode(obs[0], task)
+        # zs[0] = z
+        s = obs[0]
+        states[0] = s
+        consistency_loss = 0
+        flow_matching_loss = 0
+        for t in range(self.cfg.horizon):
+            s0 = s
+            s = self.model.next(s0, action[t])  # raw
+            consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
+            # https://github.com/opendilab/GenerativeRL/blob/3e1172ae0cbe18f311d40926d1e485b135a8e92c/grl/generative_models/model_functions/velocity_function.py#L220
+            flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
+            states[t+1] = s
+        
+        consistency_loss *= (1/self.cfg.horizon)
+        flow_matching_loss *= (1/self.cfg.horizon)
+        total_loss = (
+            self.cfg.consistency_coef * consistency_loss +
+            self.cfg.flow_coef * flow_matching_loss
+        )
+
+        # Return training statistics
+        return {
+            "consistency_loss": float(consistency_loss.mean().item()),
+            "total_loss": float(total_loss.mean().item()),
+            "flow_matching_loss": float(flow_matching_loss.mean().item()),
+        }
+
+
 
 class TDMPC2_Flow_MultiGPU:
     """

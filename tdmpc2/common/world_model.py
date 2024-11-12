@@ -227,6 +227,14 @@ class WorldModel_Flow(nn.Module):
         super().train(mode)
         self._target_Qs.train(False)
         return self
+    
+    def train_transition(self, mode=True):
+        """
+        Overriding `train` method to keep every module except transition flow model in eval mode.
+        """
+        super().train(False)
+        self._dynamics.train(mode)
+        return self
 
     def track_q_grad(self, mode=True):
         """
@@ -268,13 +276,15 @@ class WorldModel_Flow(nn.Module):
         Encodes an observation into its latent representation.
         This implementation assumes a single state-based observation.
         """
+        if isinstance(obs, list):
+            obs = torch.stack(obs)
         if self.cfg.multitask:
             obs = self.task_emb(obs, task)
         if self.cfg.obs == 'rgb' and obs.ndim == 5:
             return torch.stack([self._encoder[self.cfg.obs](o) for o in obs])
         return self._encoder[self.cfg.obs](obs)
 
-    def next(self, z, a, task):
+    def next(self, z, a):
         """
         Predicts the next latent state given the current latent state and action.
         """
@@ -282,15 +292,8 @@ class WorldModel_Flow(nn.Module):
         #     z = self.task_emb(z, task)
         # z = torch.cat([z, a], dim=-1)
         # return self._dynamics(z)
-        if self.cfg.flow_model == 'unet':
-            condition = self.task_emb(a, task)
-        else:
-            task_emb = self._task_emb(task.long())
-            if task_emb.shape[0] == 1:
-                task_emb = task_emb.repeat(a.shape[0], 1)
-            condition = TensorDict({'action': a, 'background': task_emb})
         t_span = torch.linspace(0.0, 1.0, 12) # 32)
-        z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=condition, with_grad=True)
+        z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=a, with_grad=True)
         return z_
 
     def reward(self, z, a, task):
