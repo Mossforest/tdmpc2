@@ -45,17 +45,5 @@ def parse_cfg(cfg: OmegaConf) -> OmegaConf:
             f'Invalid model size {cfg.model_size}. Must be one of {list(MODEL_SIZE.keys())}'
         for k, v in MODEL_SIZE[cfg.model_size].items():
             cfg[k] = v
-        if cfg.task == 'mt30' and cfg.model_size == 19:
-            cfg.latent_dim = 512 # This checkpoint is slightly smaller
-
-    # Multi-task
-    cfg.multitask = cfg.task in TASK_SET.keys()
-    if cfg.multitask:
-        cfg.task_title = cfg.task.upper()
-        # Account for slight inconsistency in task_dim for the mt30 experiments
-        cfg.task_dim = 96 if cfg.task in ['mt80', 'mtgrab15'] or cfg.model_size in {1, 317} else 64
-    else:
-        cfg.task_dim = 0
-    cfg.tasks = TASK_SET.get(cfg.task, [cfg.task])
 
     return cfg

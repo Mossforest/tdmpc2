@@ -76,15 +76,15 @@ class Buffer():
         Prepare a sampled batch for training (post-processing).
         Expects `td` to be a TensorDict with batch size TxB.
         """
-        obs = td['obs']
-        action = td['action'][1:]
-        reward = td['reward'][1:].unsqueeze(-1)
+        obs = td['s']
+        action = td['a'][1:]
+        reward = td['r'][1:].unsqueeze(-1)
         task = td['task'][0] if 'task' in td.keys() else None
         return self._to_device(obs, action, reward, task)
 
     def add(self, td):
         """Add an episode to the buffer."""
-        td['episode'] = torch.ones_like(td['reward'], dtype=torch.int64) * self._num_eps
+        td['episode'] = torch.ones_like(td['r'], dtype=torch.int64) * self._num_eps
         if self._num_eps == 0:
             self._buffer = self._init(td)
         self._buffer.extend(td)

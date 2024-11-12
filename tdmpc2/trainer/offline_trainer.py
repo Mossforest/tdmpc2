@@ -3,6 +3,7 @@ from copy import deepcopy
 from time import time
 from pathlib import Path
 from glob import glob
+import pickle
 
 import numpy as np
 import torch
@@ -102,55 +103,93 @@ class OfflineTrainer(Trainer):
         # assert self.cfg.multitask and self.cfg.task in {'mt30', 'mt80'}, \
         #     'Offline training only supports multitask training with mt30 or mt80 task sets.'
 
-        # Load data
-        # assert self.cfg.task in self.cfg.data_dir, \
-        #     f'Expected data directory {self.cfg.data_dir} to contain {self.cfg.task}, ' \
-        #     f'please double-check your config.'
-        fp = Path(os.path.join(self.cfg.data_dir, '*.pt'))
-        fps = sorted(glob(str(fp)))
-        assert len(fps) > 0, f'No data found at {fp}'
-        print(f'Found {len(fps)} files in {fp}')
-    
-        # Create buffer for sampling
+        # # Load data
         _cfg = deepcopy(self.cfg)
-        _cfg.buffer_size = self.cfg.buffer_size #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
+        _cfg.buffer_size = self.cfg.buffer_size
         _cfg.steps = _cfg.buffer_size
-        self.buffer = Buffer(_cfg)
-        for fp in tqdm(fps, desc='Loading data'):
-            td = torch.load(fp)
-            try:
-                _cfg.episode_length = td.shape[1]
-            except IndexError:
-                td.shape = td['task'].shape
-                _cfg.episode_length = td.shape[1]
-            for i in range(len(td)):
-                self.buffer.add(td[i])
+        self.buffer = Buffer(_cfg)  # 假设Buffer是你的数据缓冲区类
+        
+        fp = self.cfg.data_dir
+        with open(fp, 'rb') as f:
+            td = pickle.load(f)
+        td = torch.TensorDict({k: torch.tensor(v) for k, v in td.items()})
+        try:
+            _cfg.episode_length = td.shape[1]
+        except IndexError:
+            td.shape = td['r'].shape
+            _cfg.episode_length = td.shape[1]
+        for i in range(len(td)):
+            self.buffer.add(td[i])
+        for episode in tqdm(td, desc='Loading data'):
+            self.buffer.add(episode)
         assert self.buffer.num_eps == self.buffer.capacity, \
             f'Buffer has {self.buffer.num_eps} episodes, expected {self.buffer.capacity} episodes.'
         
+        # fp = Path(os.path.join(self.cfg.data_dir, '*.pt'))
+        # fps = sorted(glob(str(fp)))
+        # assert len(fps) > 0, f'No data found at {fp}'
+        # print(f'Found {len(fps)} files in {fp}')
+    
+        # # Create buffer for sampling
+        # _cfg = deepcopy(self.cfg)
+        # _cfg.buffer_size = self.cfg.buffer_size
+        # _cfg.steps = _cfg.buffer_size
+        # self.buffer = Buffer(_cfg)
+        # for fp in tqdm(fps, desc='Loading data'):
+        #     td = torch.load(fp)
+        #     try:
+        #         _cfg.episode_length = td.shape[1]
+        #     except IndexError:
+        #         td.shape = td['task'].shape
+        #         _cfg.episode_length = td.shape[1]
+        #     for i in range(len(td)):
+        #         self.buffer.add(td[i])
+        # assert self.buffer.num_eps == self.buffer.capacity, \
+        #     f'Buffer has {self.buffer.num_eps} episodes, expected {self.buffer.capacity} episodes.'
+        
         # create eval buffer if eval
         if self.cfg.eval_enable:
-            fp = Path(os.path.join(self.cfg.eval_data_dir, '*.pt'))
-            fps = sorted(glob(str(fp)))
-            assert len(fps) > 0, f'No data found at {fp}'
-            print(f'Found {len(fps)} files in {fp}')
-            
             _cfg = deepcopy(self.cfg)
-            _cfg.buffer_size = self.cfg.eval_buffer_size #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
+            _cfg.buffer_size = self.cfg.eval_buffer_size
             _cfg.steps = _cfg.buffer_size
-            self.eval_buffer = Buffer(_cfg)
-            for fp in tqdm(fps, desc='Loading eval data'):
-                td = torch.load(fp)
-                try:
-                    _cfg.episode_length = td.shape[1]
-                except IndexError:
-                    td.shape = td['task'].shape
-                    _cfg.episode_length = td.shape[1]
-                for i in range(len(td)):
-                    self.eval_buffer.add(td[i])
+            self.eval_buffer = Buffer(_cfg)  # 假设Buffer是你的数据缓冲区类
+            
+            fp = self.cfg.eval_data_dir
+            with open(fp, 'rb') as f:
+                td = pickle.load(f)
+            td = torch.TensorDict({k: torch.tensor(v) for k, v in td.items()})
+            try:
+                _cfg.episode_length = td.shape[1]
+            except IndexError:
+                td.shape = td['r'].shape
+                _cfg.episode_length = td.shape[1]
+            for i in range(len(td)):
+                self.eval_buffer.add(td[i])
+            for episode in tqdm(td, desc='Loading data'):
+                self.eval_buffer.add(episode)
             assert self.eval_buffer.num_eps == self.eval_buffer.capacity, \
-                f'Eval buffer has {self.eval_buffer.num_eps} episodes, expected {self.eval_buffer.capacity} episodes.'
-        
+                f'Buffer has {self.eval_buffer.num_eps} episodes, expected {self.eval_buffer.capacity} episodes.'
+            
+            # fp = Path(os.path.join(self.cfg.eval_data_dir, '*.pt'))
+            # fps = sorted(glob(str(fp)))
+            # assert len(fps) > 0, f'No data found at {fp}'
+            # print(f'Found {len(fps)} files in {fp}')
+            
+            # _cfg = deepcopy(self.cfg)
+            # _cfg.buffer_size = self.cfg.eval_buffer_size #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
+            # _cfg.steps = _cfg.buffer_size
+            # self.eval_buffer = Buffer(_cfg)
+            # for fp in tqdm(fps, desc='Loading eval data'):
+            #     td = torch.load(fp)
+            #     try:
+            #         _cfg.episode_length = td.shape[1]
+            #     except IndexError:
+            #         td.shape = td['task'].shape
+            #         _cfg.episode_length = td.shape[1]
+            #     for i in range(len(td)):
+            #         self.eval_buffer.add(td[i])
+            # assert self.eval_buffer.num_eps == self.eval_buffer.capacity, \
+            #     f'Eval buffer has {self.eval_buffer.num_eps} episodes, expected {self.eval_buffer.capacity} episodes.'
         
         print(f"Training agent's transition model for {self.cfg.steps} iterations...")
         metrics = {}
