@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import torch
 from tqdm import tqdm
+from tensordict.tensordict import TensorDict
 
 from common.buffer import Buffer
 from trainer.base import Trainer
@@ -112,7 +113,7 @@ class OfflineTrainer(Trainer):
         fp = self.cfg.data_dir
         with open(fp, 'rb') as f:
             td = pickle.load(f)
-        td = torch.TensorDict({k: torch.tensor(v) for k, v in td.items()})
+        td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
         try:
             _cfg.episode_length = td.shape[1]
         except IndexError:
@@ -120,32 +121,8 @@ class OfflineTrainer(Trainer):
             _cfg.episode_length = td.shape[1]
         for i in range(len(td)):
             self.buffer.add(td[i])
-        for episode in tqdm(td, desc='Loading data'):
-            self.buffer.add(episode)
         assert self.buffer.num_eps == self.buffer.capacity, \
             f'Buffer has {self.buffer.num_eps} episodes, expected {self.buffer.capacity} episodes.'
-        
-        # fp = Path(os.path.join(self.cfg.data_dir, '*.pt'))
-        # fps = sorted(glob(str(fp)))
-        # assert len(fps) > 0, f'No data found at {fp}'
-        # print(f'Found {len(fps)} files in {fp}')
-    
-        # # Create buffer for sampling
-        # _cfg = deepcopy(self.cfg)
-        # _cfg.buffer_size = self.cfg.buffer_size
-        # _cfg.steps = _cfg.buffer_size
-        # self.buffer = Buffer(_cfg)
-        # for fp in tqdm(fps, desc='Loading data'):
-        #     td = torch.load(fp)
-        #     try:
-        #         _cfg.episode_length = td.shape[1]
-        #     except IndexError:
-        #         td.shape = td['task'].shape
-        #         _cfg.episode_length = td.shape[1]
-        #     for i in range(len(td)):
-        #         self.buffer.add(td[i])
-        # assert self.buffer.num_eps == self.buffer.capacity, \
-        #     f'Buffer has {self.buffer.num_eps} episodes, expected {self.buffer.capacity} episodes.'
         
         # create eval buffer if eval
         if self.cfg.eval_enable:
@@ -157,7 +134,7 @@ class OfflineTrainer(Trainer):
             fp = self.cfg.eval_data_dir
             with open(fp, 'rb') as f:
                 td = pickle.load(f)
-            td = torch.TensorDict({k: torch.tensor(v) for k, v in td.items()})
+            td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
             try:
                 _cfg.episode_length = td.shape[1]
             except IndexError:
@@ -165,31 +142,8 @@ class OfflineTrainer(Trainer):
                 _cfg.episode_length = td.shape[1]
             for i in range(len(td)):
                 self.eval_buffer.add(td[i])
-            for episode in tqdm(td, desc='Loading data'):
-                self.eval_buffer.add(episode)
             assert self.eval_buffer.num_eps == self.eval_buffer.capacity, \
                 f'Buffer has {self.eval_buffer.num_eps} episodes, expected {self.eval_buffer.capacity} episodes.'
-            
-            # fp = Path(os.path.join(self.cfg.eval_data_dir, '*.pt'))
-            # fps = sorted(glob(str(fp)))
-            # assert len(fps) > 0, f'No data found at {fp}'
-            # print(f'Found {len(fps)} files in {fp}')
-            
-            # _cfg = deepcopy(self.cfg)
-            # _cfg.buffer_size = self.cfg.eval_buffer_size #1200 # 550_450_000 if self.cfg.task == 'mt80' else 345_690_000
-            # _cfg.steps = _cfg.buffer_size
-            # self.eval_buffer = Buffer(_cfg)
-            # for fp in tqdm(fps, desc='Loading eval data'):
-            #     td = torch.load(fp)
-            #     try:
-            #         _cfg.episode_length = td.shape[1]
-            #     except IndexError:
-            #         td.shape = td['task'].shape
-            #         _cfg.episode_length = td.shape[1]
-            #     for i in range(len(td)):
-            #         self.eval_buffer.add(td[i])
-            # assert self.eval_buffer.num_eps == self.eval_buffer.capacity, \
-            #     f'Eval buffer has {self.eval_buffer.num_eps} episodes, expected {self.eval_buffer.capacity} episodes.'
         
         print(f"Training agent's transition model for {self.cfg.steps} iterations...")
         metrics = {}
@@ -206,8 +160,7 @@ class OfflineTrainer(Trainer):
                 }
                 metrics.update(train_metrics)
                 if self.cfg.eval_enable and (i % self.cfg.eval_freq == 0 or i == self.cfg.steps-1):
-                    metrics.update(self.transition_eval(self.eval_buffer))
-                    self.logger.pprint_multitask(metrics, self.cfg)
+                    metrics.update(self.agent.transition_eval(self.eval_buffer))
                     if i > 0:
                         self.logger.save_agent(self.agent, identifier=f'{i}')
                 self.logger.log(metrics, 'pretrain')

@@ -48,6 +48,8 @@ def train(cfg: dict):
     cfg = parse_cfg(cfg)
     set_seed(cfg.seed)
     print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
+    if cfg.offline_wandb:
+        os.environ["WANDB_MODE"] = "offline"
 
     trainer_cls = OfflineTrainer
     trainer = trainer_cls(

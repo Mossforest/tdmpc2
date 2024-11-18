@@ -1,6 +1,9 @@
 defaults:
     - override hydra/launcher: submitit_local
 
+task: tdmpc2-transition-flow
+sub_task: losscoef_lr
+
 # environment
 multitask: false
 setpoint: 70
@@ -11,18 +14,18 @@ observation_type: classic
 # evaluation
 checkpoint: null
 eval_episodes: 1
-eval_freq: 50_000
-eval_enable: false
+eval_freq: 1_000
+eval_enable: true
 
 # training
-steps: 1_250_000 # 10_000_000 / 8 
+steps: 20_000
 batch_size: 256
 reward_coef: 0.1
 value_coef: 0.1
-consistency_coef: 20
+consistency_coef: 2.0
 flow_coef: 1.0
 rho: 0.5
-lr: 3e-4
+lr: 5e-5
 enc_lr_scale: 0.3
 grad_clip_norm: 20
 tau: 0.01
@@ -32,7 +35,8 @@ discount_max: 0.995
 buffer_size: 10_000
 eval_buffer_size: 1_000
 exp_name: transition-flow
-data_dir: TODO
+data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
+eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
 pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
 
 # planning
@@ -62,8 +66,9 @@ num_enc_layers: 2
 enc_dim: 256
 num_channels: 32
 mlp_dim: 512
+state_dim: 6
 latent_dim: 512
-task_dim: 96
+task_dim: 0
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
@@ -71,12 +76,11 @@ flow_model: unet
 transition_hidden_dim: 512
 
 # logging
-wandb_project: tdmpc2-ib-transition
-wandb_sub_project: demo
 wandb_entity: moss_chen
 wandb_silent: false
 disable_wandb: false
 save_csv: false
+offline_wandb: true
 
 # misc
 save_video: false
@@ -90,7 +94,7 @@ work_dir: ???
 task_title: ???
 obs_shape: ???
 action_dim: 3
-episode_length: ???
+episode_length: 101
 obs_shapes: ???
 action_dims: ???
 episode_lengths: 100

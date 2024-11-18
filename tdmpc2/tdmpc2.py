@@ -603,6 +603,8 @@ class TDMPC2_Flow:
             dict: Dictionary of training statistics.
         """
         obs, action, reward, task = buffer.sample()
+        obs = obs.float()
+        action = action.float()
 
         # Prepare for update
         self.optim.zero_grad(set_to_none=True)
@@ -657,6 +659,8 @@ class TDMPC2_Flow:
             dict: Dictionary of training statistics.
         """
         obs, action, reward, task = buffer.sample()
+        obs = obs.float()
+        action = action.float()
         self.model.eval()
 
         # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)

@@ -278,20 +278,12 @@ class WorldModel_Flow(nn.Module):
         """
         if isinstance(obs, list):
             obs = torch.stack(obs)
-        if self.cfg.multitask:
-            obs = self.task_emb(obs, task)
-        if self.cfg.obs == 'rgb' and obs.ndim == 5:
-            return torch.stack([self._encoder[self.cfg.obs](o) for o in obs])
         return self._encoder[self.cfg.obs](obs)
 
     def next(self, z, a):
         """
         Predicts the next latent state given the current latent state and action.
         """
-        # if self.cfg.multitask:
-        #     z = self.task_emb(z, task)
-        # z = torch.cat([z, a], dim=-1)
-        # return self._dynamics(z)
         t_span = torch.linspace(0.0, 1.0, 12) # 32)
         z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=a, with_grad=True)
         return z_
@@ -362,7 +354,7 @@ class WorldModel_Flow(nn.Module):
         flow_model_dict = {
             'unet': EasyDict(dict(
                 device=device,
-                x_size=[cfg.latent_dim],
+                x_size=[cfg.state_dim],
                 alpha=1.0,
                 solver=dict(
                     type="ODESolver",
@@ -386,10 +378,11 @@ class WorldModel_Flow(nn.Module):
                         backbone=dict(
                             type="TemporalSpatialResidualNet",
                             args=dict(
-                                hidden_sizes=[512, 256, 128],
-                                output_dim=cfg.latent_dim,
+                                hidden_sizes=[64, 128, 256], #[512, 256, 128],
+                                input_dim=cfg.state_dim,
+                                output_dim=cfg.state_dim,
                                 t_dim=32,
-                                condition_dim=cfg.action_dim + cfg.task_dim,
+                                condition_dim=cfg.action_dim,
                                 condition_hidden_dim=32,
                                 t_condition_hidden_dim=128,
                             ),
@@ -401,7 +394,7 @@ class WorldModel_Flow(nn.Module):
             
             'gnn': EasyDict(dict(
                 device=device,
-                x_size=cfg.latent_dim,
+                x_size=cfg.state_dim,
                 alpha=1.0,
                 solver=dict(
                     type="ODESolver",
@@ -430,11 +423,6 @@ class WorldModel_Flow(nn.Module):
                                     output_size=cfg.transition_hidden_dim,
                                     activation='relu',
                                 ),
-                                background_encoder=dict(
-                                    hidden_sizes=[cfg.task_dim] + [cfg.transition_hidden_dim] * 2,
-                                    output_size=cfg.transition_hidden_dim,
-                                    activation='relu',
-                                )
                             ),
                         ),
                         x_encoder = dict(
