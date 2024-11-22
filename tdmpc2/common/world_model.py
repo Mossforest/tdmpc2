@@ -371,20 +371,20 @@ class WorldModel_Flow(nn.Module):
                         t_encoder=dict(
                             type="GaussianFourierProjectionTimeEncoder",
                             args=dict(
-                                embed_dim=32,
+                                embed_dim=cfg.t_dim,
                                 scale=30.0,
                             ),
                         ),
                         backbone=dict(
                             type="TemporalSpatialResidualNet",
                             args=dict(
-                                hidden_sizes=[64, 128, 256], #[512, 256, 128],
+                                hidden_sizes=cfg.unet_hidden_sizes,
                                 input_dim=cfg.state_dim,
                                 output_dim=cfg.state_dim,
-                                t_dim=32,
+                                t_dim=cfg.t_dim,
                                 condition_dim=cfg.action_dim,
-                                condition_hidden_dim=32,
-                                t_condition_hidden_dim=128,
+                                condition_hidden_dim=cfg.condition_hidden_dim,
+                                t_condition_hidden_dim=cfg.t_condition_hidden_dim,
                             ),
                         ),
                     ),

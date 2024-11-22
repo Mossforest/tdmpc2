@@ -2,7 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition-flow
-sub_task: losscoef_lr
+sub_task: horizon1 # sub_task = exp_name
+exp_name: horizon1
 
 # environment
 multitask: false
@@ -19,13 +20,13 @@ eval_enable: true
 
 # training
 steps: 20_000
-batch_size: 256
+batch_size: 1024
 reward_coef: 0.1
 value_coef: 0.1
 consistency_coef: 2.0
 flow_coef: 1.0
 rho: 0.5
-lr: 5e-5
+lr: 1e-4
 enc_lr_scale: 0.3
 grad_clip_norm: 20
 tau: 0.01
@@ -34,7 +35,6 @@ discount_min: 0.95
 discount_max: 0.995
 buffer_size: 10_000
 eval_buffer_size: 1_000
-exp_name: transition-flow
 data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
 eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
 pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
@@ -45,7 +45,7 @@ iterations: 6
 num_samples: 512
 num_elites: 64
 num_pi_trajs: 24
-horizon: 3
+horizon: 1
 min_std: 0.05
 max_std: 2
 temperature: 0.5
@@ -73,7 +73,11 @@ num_q: 5
 dropout: 0.01
 simnorm_dim: 8
 flow_model: unet
+unet_hidden_sizes: [64, 128, 256]
 transition_hidden_dim: 512
+condition_hidden_dim: 32
+t_condition_hidden_dim: 128
+t_dim: 32
 
 # logging
 wandb_entity: moss_chen

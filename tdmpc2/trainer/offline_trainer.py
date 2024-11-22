@@ -114,6 +114,9 @@ class OfflineTrainer(Trainer):
         with open(fp, 'rb') as f:
             td = pickle.load(f)
         td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
+        # norm
+        td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
+        td['r'] = (td['r'] / torch.mean(td['r'])) / torch.std(td['r'])   # (miu=0, sigma=1)
         try:
             _cfg.episode_length = td.shape[1]
         except IndexError:
