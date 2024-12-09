@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: flow_tspan3 # sub_task = exp_name
-exp_name: flow_tspan3
+sub_task: flow_tspan2 # sub_task = exp_name
+exp_name: flow_tspan2
 
 # environment
 multitask: false
@@ -13,7 +13,7 @@ action_type: continuous
 observation_type: classic
 
 # evaluation
-checkpoint: null
+checkpoint: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/flow_tspan2/models/final.pt
 eval_episodes: 1
 eval_freq: 1_000
 eval_enable: true
@@ -25,10 +25,9 @@ reward_coef: 0.1
 value_coef: 0.1
 consistency_coef: 2.0
 flow_coef: 1.0
-consistency_t_step: 18
+consistency_t_step: 1
 rho: 0.5
 lr: 5e-4
-weight_decay: 1e-4
 enc_lr_scale: 0.3
 grad_clip_norm: 5
 tau: 0.01

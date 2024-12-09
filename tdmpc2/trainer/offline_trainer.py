@@ -116,7 +116,12 @@ class OfflineTrainer(Trainer):
         td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
         # norm
         td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
-        td['r'] = (td['r'] / torch.mean(td['r'])) / torch.std(td['r'])   # (miu=0, sigma=1)
+        obs[-1] = (obs[-1] + 1) / 7.0 - 1
+        reward_mean = torch.mean(td['r'])
+        reward_std = torch.std(td['r'])
+        reward_dict = {'mean': reward_mean, 'std': reward_std}
+        np.save('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/reward_params.npy', reward_dict)
+        td['r'] = (td['r'] / reward_mean) / reward_std   # (miu=0, sigma=1)
         try:
             _cfg.episode_length = td.shape[1]
         except IndexError:
@@ -138,6 +143,10 @@ class OfflineTrainer(Trainer):
             with open(fp, 'rb') as f:
                 td = pickle.load(f)
             td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
+            # norm
+            td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
+            obs[-1] = (obs[-1] + 1) / 7.0 - 1
+            td['r'] = (td['r'] / reward_mean) / reward_std   # (miu=0, sigma=1)
             try:
                 _cfg.episode_length = td.shape[1]
             except IndexError:

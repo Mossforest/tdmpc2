@@ -22,7 +22,7 @@ class TDMPC2:
         self.model = WorldModel(cfg).to(self.device)
         if cfg.pretrained_path:
             self.load(cfg.pretrained_path)
-            print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
+            print(f'loaded pretrained model from', colored(cfg.pretrained_path, 'yellow', attrs=['bold']))
         else:
             print(colored('train from scratch', 'yellow', attrs=['bold']))
         self.optim = torch.optim.Adam([
@@ -31,8 +31,8 @@ class TDMPC2:
             {'params': self.model._reward.parameters()},
             {'params': self.model._Qs.parameters()},
             {'params': self.model._task_emb.parameters() if self.cfg.multitask else []}
-        ], lr=self.cfg.lr)
-        self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5)
+        ], lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
+        self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay, eps=1e-5)
         self.model.eval()
         self.scale = RunningScale(cfg)
         self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
@@ -296,6 +296,99 @@ class TDMPC2:
             "pi_scale": float(self.scale.value),
         }
 
+    def transition_update(self, buffer):
+        """
+        Only update transition model (flow model). Corresponds to one iteration of model learning.
+        
+        Args:
+            buffer (common.buffer.Buffer): Replay buffer.
+        
+        Returns:
+            dict: Dictionary of training statistics.
+        """
+        obs, action, reward, task = buffer.sample()
+        obs = obs.float()
+        action = action.float()
+        task = torch.tensor([0])
+
+        # Compute targets
+        with torch.no_grad():
+            next_z = self.model.encode(obs[1:], task)
+            td_targets = self._td_target(next_z, reward, task)
+
+        # Prepare for update
+        self.optim.zero_grad(set_to_none=True)
+        self.model.train_transition()
+
+        # Latent rollout
+        zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
+        z = self.model.encode(obs[0], task)
+        zs[0] = z
+        consistency_loss = 0
+        for t in range(self.cfg.horizon):
+            z = self.model.next(z, action[t], task)
+            consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
+            zs[t+1] = z
+
+        # Compute losses
+        consistency_loss *= (1/self.cfg.horizon)
+        total_loss = consistency_loss
+
+        # Update model
+        total_loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip_norm)
+        self.optim.step()
+
+        # Return training statistics
+        self.model.eval()
+        return {
+            "train/consistency_loss": float(consistency_loss.mean().item()),
+            "train/total_loss": float(total_loss.mean().item()),
+            "train/grad_norm": float(grad_norm),
+        }
+
+
+    def transition_eval(self, buffer):
+        """
+        Only eval transition model (flow model). Corresponds to one iteration of model learning.
+        
+        Args:
+            buffer (common.buffer.Buffer): Replay buffer.
+        
+        Returns:
+            dict: Dictionary of training statistics.
+        """
+        obs, action, reward, task = buffer.sample()
+        obs = obs.float()
+        action = action.float()
+        self.model.eval()
+
+        # Compute targets
+        with torch.no_grad():
+            next_z = self.model.encode(obs[1:], task)
+            td_targets = self._td_target(next_z, reward, task)
+
+        # Latent rollout
+        zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
+        z = self.model.encode(obs[0], task)
+        zs[0] = z
+        consistency_loss = 0
+        for t in range(self.cfg.horizon):
+            z = self.model.next(z, action[t], task)
+            consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
+            zs[t+1] = z
+        
+        # Compute losses
+        consistency_loss *= (1/self.cfg.horizon)
+        total_loss = consistency_loss
+
+        # Return training statistics
+        return {
+            "eval/consistency_loss": float(consistency_loss.mean().item()),
+            "eval/total_loss": float(total_loss.mean().item()),
+        }
+
+
 class TDMPC2_Flow:
     """
     TD-MPC2 agent. Implements training + inference.
@@ -318,8 +411,8 @@ class TDMPC2_Flow:
             {'params': self.model._reward.parameters()},
             {'params': self.model._Qs.parameters()},
             {'params': self.model._task_emb.parameters() if self.cfg.multitask else []}
-        ], lr=self.cfg.lr)
-        self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5)
+        ], lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
+        self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay, eps=1e-5)
         self.model.eval()
         self.scale = RunningScale(cfg)
         self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
@@ -620,7 +713,7 @@ class TDMPC2_Flow:
         flow_matching_loss = 0
         for t in range(self.cfg.horizon):
             s0 = s
-            s = self.model.next(s0, action[t])  # raw
+            s = self.model.next(s0, action[t], t_step=self.cfg.consistency_t_step)  # raw
             consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
             # https://github.com/opendilab/GenerativeRL/blob/3e1172ae0cbe18f311d40926d1e485b135a8e92c/grl/generative_models/model_functions/velocity_function.py#L220
             flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
@@ -641,10 +734,10 @@ class TDMPC2_Flow:
         # Return training statistics
         self.model.eval()
         return {
-            "consistency_loss": float(consistency_loss.mean().item()),
-            "total_loss": float(total_loss.mean().item()),
-            "flow_matching_loss": float(flow_matching_loss.mean().item()),
-            "grad_norm": float(grad_norm),
+            "train/consistency_loss": float(consistency_loss.mean().item()),
+            "train/total_loss": float(total_loss.mean().item()),
+            "train/flow_matching_loss": float(flow_matching_loss.mean().item()),
+            "train/grad_norm": float(grad_norm),
         }
 
 
@@ -688,9 +781,9 @@ class TDMPC2_Flow:
 
         # Return training statistics
         return {
-            "consistency_loss": float(consistency_loss.mean().item()),
-            "total_loss": float(total_loss.mean().item()),
-            "flow_matching_loss": float(flow_matching_loss.mean().item()),
+            "eval/consistency_loss": float(consistency_loss.mean().item()),
+            "eval/total_loss": float(total_loss.mean().item()),
+            "eval/flow_matching_loss": float(flow_matching_loss.mean().item()),
         }
 
 

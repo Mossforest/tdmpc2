@@ -59,6 +59,14 @@ class WorldModel(nn.Module):
         self._target_Qs.train(False)
         return self
 
+    def train_transition(self, mode=True):
+        """
+        Overriding `train` method to keep every module except transition flow model in eval mode.
+        """
+        super().train(False)
+        self._dynamics.train(mode)
+        return self
+
     def track_q_grad(self, mode=True):
         """
         Enables/disables gradient tracking of Q-networks.
@@ -280,11 +288,11 @@ class WorldModel_Flow(nn.Module):
             obs = torch.stack(obs)
         return self._encoder[self.cfg.obs](obs)
 
-    def next(self, z, a):
+    def next(self, z, a, t_step=12):
         """
         Predicts the next latent state given the current latent state and action.
         """
-        t_span = torch.linspace(0.0, 1.0, 12) # 32)
+        t_span = torch.linspace(0.0, 1.0, t_step) # 32)
         z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=a, with_grad=True)
         return z_
 
@@ -399,7 +407,7 @@ class WorldModel_Flow(nn.Module):
                 solver=dict(
                     type="ODESolver",
                     args=dict(
-                        library="torchdyn",
+                        library="torchdiffeq_adjoint", # "torchdyn",
                     ),
                 ),
                 path=dict(

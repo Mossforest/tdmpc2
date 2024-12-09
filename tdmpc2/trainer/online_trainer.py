@@ -15,6 +15,7 @@ class OnlineTrainer(Trainer):
         self._step = 0
         self._ep_idx = 0
         self._start_time = time()
+        self.reward_dict = np.load('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/reward_params.npy')
 
     def common_metrics(self):
         """Return a dictionary of current metrics."""
@@ -29,12 +30,17 @@ class OnlineTrainer(Trainer):
         ep_rewards, ep_successes = [], []
         for i in range(self.cfg.eval_episodes):
             obs, done, ep_reward, t = self.env.reset(), False, 0, 0
+            obs = obs / 100.0 * 2 - 1  # norm -> [-1, 1]
+            obs[-1] = (obs[-1] + 1) / 7.0 - 1
             if self.cfg.save_video:
                 self.logger.video.init(self.env, enabled=(i==0))
             while not done:
                 action = self.agent.act(obs, t0=t==0, eval_mode=True)
                 obs, reward, done, info = self.env.step(action)
-                ep_reward += reward
+                obs = obs / 100.0 * 2 - 1  # norm -> [-1, 1]
+                obs[-1] = (obs[-1] + 1) / 7.0 - 1
+                normed_reward = (reward / self.reward_dict['mean']) / self.reward_dict['std']
+                ep_reward += normed_reward
                 t += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
@@ -58,9 +64,9 @@ class OnlineTrainer(Trainer):
         if reward is None:
             reward = torch.tensor(float('nan'))
         td = TensorDict(dict(
-            obs=obs,
-            action=action.unsqueeze(0),
-            reward=reward.unsqueeze(0),
+            s=obs,
+            a=action.unsqueeze(0),
+            r=reward.unsqueeze(0),
         ), batch_size=(1,))
         return td
 
@@ -83,7 +89,7 @@ class OnlineTrainer(Trainer):
 
                 if self._step > 0:
                     train_metrics.update(
-                        episode_reward=torch.tensor([td['reward'] for td in self._tds[1:]]).sum(),
+                        episode_reward=torch.tensor([td['r'] for td in self._tds[1:]]).sum(),
                         episode_success=info['success'],
                     )
                     train_metrics.update(self.common_metrics())
@@ -91,6 +97,8 @@ class OnlineTrainer(Trainer):
                     self._ep_idx = self.buffer.add(torch.cat(self._tds))
 
                 obs = self.env.reset()
+                obs = obs / 100.0 * 2 - 1  # norm -> [-1, 1]
+                obs[-1] = (obs[-1] + 1) / 7.0 - 1
                 self._tds = [self.to_td(obs)]
 
             # Collect experience
@@ -99,7 +107,10 @@ class OnlineTrainer(Trainer):
             else:
                 action = self.env.rand_act()
             obs, reward, done, info = self.env.step(action)
-            self._tds.append(self.to_td(obs, action, reward))
+            obs = obs / 100.0 * 2 - 1  # norm -> [-1, 1]
+            obs[-1] = (obs[-1] + 1) / 7.0 - 1
+            normed_reward = (ep_reward / self.reward_dict['mean']) / self.reward_dict['std']
+            self._tds.append(self.to_td(obs, action, normed_reward))
 
             # Update agent
             if self._step >= self.cfg.seed_steps:
@@ -195,7 +206,7 @@ class MultiGPUOnlineTrainer(Trainer):
 
                 if self._step > 0:
                     train_metrics.update(
-                        episode_reward=torch.tensor([td['reward'] for td in self._tds[1:]]).sum(),
+                        episode_reward=torch.tensor([td['r'] for td in self._tds[1:]]).sum(),
                         episode_success=info['success'],
                     )
                     train_metrics.update(self.common_metrics())
