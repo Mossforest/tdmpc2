@@ -264,5 +264,5 @@ if __name__ == "__main__":
     plt.xlabel('timestep')
     plt.ylabel('Value')
 
-    plt.savefig('./transition_datademo_gt1.png')
+    plt.savefig('./transition_datademo_gt.png')
 

@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 from common.parser import parse_cfg
 from common.seed import set_seed
 from envs import make_env
-from tdmpc2 import TDMPC2_Flow
+from tdmpc2 import TDMPC2
 
 torch.backends.cudnn.benchmark = True
 
@@ -64,7 +64,45 @@ def apply_pca_parameters(data_2, pca_parameters):
     
     return reduced_data_2
 
-@hydra.main(config_name='config_transition_flow1', config_path='configs')
+
+
+def pca_to_1d(data, n_components=1):
+    """
+    将n维数据通过PCA降维到1维，并返回PCA参数。
+    
+    参数:
+    data : numpy.ndarray
+        待降维的数据，形状为 (n_samples, n_features)。
+    n_components : int, 默认为1
+        降维后的目标维度数。
+    
+    返回:
+    pca_parameters : dict
+        PCA模型的参数，包括mean、components_和explained_variance_。
+    reduced_data : numpy.ndarray
+        降维后的数据。
+    """
+    # 标准化数据
+    scaler = StandardScaler()
+    data_normalized = scaler.fit_transform(data)
+    
+    # 初始化PCA模型
+    pca = PCA(n_components=n_components)
+    
+    # 拟合PCA模型并降维数据
+    reduced_data = pca.fit_transform(data_normalized)
+    
+    # 保存PCA模型参数
+    pca_parameters = {
+        'mean': scaler.mean_,
+        'components_': pca.components_,
+        'explained_variance_': pca.explained_variance_
+    }
+    
+    return pca_parameters, reduced_data
+
+
+@hydra.main(config_name='config_plan_origin1', config_path='configs')
 def evaluate(cfg: dict):
     """
     Script for evaluating a single-task / multi-task TD-MPC2 checkpoint.
@@ -95,7 +133,7 @@ def evaluate(cfg: dict):
     env = make_env(cfg)
 
     # Load agent
-    agent = TDMPC2_Flow(cfg)
+    agent = TDMPC2(cfg)
     assert os.path.exists(cfg.checkpoint), f'Checkpoint {cfg.checkpoint} not found! Must be a valid filepath.'
     agent.load(cfg.checkpoint)
     print(colored(f'Checkpoint: {cfg.checkpoint}', 'blue', attrs=['bold']))
@@ -110,26 +148,35 @@ def evaluate(cfg: dict):
     data_next_s = np.asarray(td['next_s'])
     data_a = np.asarray(td['a'])
 
-    predicted_next_x = np.zeros(data_next_s.shape)
+    predicted_next_z = np.zeros(data_next_s.shape)
     obs = data_s / 100.0 * 2 - 1  # norm -> [-1, 1]
     obs[:, -1] = (obs[:, -1] + 1) / 7.0 - 1
+    obs = torch.Tensor(obs).to(agent.device)
+    gt_z = agent.model.encode(obs, task=None)
+    predicted_next_z = np.zeros(gt_z.shape)
     for k in range(obs.shape[0]):
-        s0 = torch.Tensor(obs[k]).unsqueeze(0).to(agent.device)
+        z0 = gt_z[k].unsqueeze(0)
         action = torch.Tensor(data_a[k]).unsqueeze(0).to(agent.device)
-        s = agent.model.next(s0, action, t_step=cfg.consistency_t_step)
-        predicted_next_x[k] = s.cpu().detach().numpy()
-    predicted_next_x = np.stack(predicted_next_x, axis=0)
-    predicted_next_x[:, -1] = (predicted_next_x[:, -1] + 1) * 7. - 1
-    predicted_next_s = (predicted_next_x + 1) * 100 / 2.
+        z = agent.model.next(z0, action, task=None)
+        predicted_next_z[k] = z.cpu().detach().numpy()
+    predicted_next_z = np.stack(predicted_next_z, axis=0)
+    gt_z = gt_z.cpu().detach().numpy()
+    
+    next_obs = data_next_s / 100.0 * 2 - 1  # norm -> [-1, 1]
+    next_obs[:, -1] = (next_obs[:, -1] + 1) / 7.0 - 1
+    next_obs = torch.Tensor(next_obs).to(agent.device)
+    gt_next_z = agent.model.encode(next_obs, task=None).cpu().detach().numpy()
 
-    pca_params = np.load('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/gt_pca_parameters.npy',
-                         allow_pickle=True).item()
-    reduced_s = apply_pca_parameters(data_s[:, 1:], pca_params)
-    reduced_next_s = apply_pca_parameters(predicted_next_s[:, 1:], pca_params)
+    # get params
+    pca_params, reduced_gt_z = pca_to_1d(gt_z, n_components=1)
+    reduced_gt_next_z = apply_pca_parameters(gt_next_z, pca_params)
+    reduced_predicted_next_z = apply_pca_parameters(predicted_next_z, pca_params)
 
+
+    # GT fig
     # transform data
-    x = reduced_s.astype(np.float32).squeeze()
-    y = reduced_next_s.astype(np.float32).squeeze()
+    x = reduced_gt_z.astype(np.float32).squeeze()
+    y = reduced_gt_next_z.astype(np.float32).squeeze()
     mmin, mmax = x.min(), x.max()
     x = (x - mmin) / (mmax - mmin)
     x = x * 4 - 2
@@ -155,11 +202,50 @@ def evaluate(cfg: dict):
         plt.plot(range(1, interp_n+1), x[i], color='blue', alpha=0.03, marker=None)  # 不显示数据点
 
     # 设置图例、标题和标签等（如果需要）
-    plt.title(f'transition_flow_wm, mse: {mse_result}')
+    plt.title(f'transition_origin_plan_gt, mse: {mse_result}')
     plt.xlabel('timestep')
     plt.ylabel('Value')
 
-    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_flow_wm_tspan3.png')
+    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_origin_plan_gt.png')
+
+
+
+    # agent fig
+    # transform data
+    x = reduced_gt_z.astype(np.float32).squeeze()
+    y = reduced_predicted_next_z.astype(np.float32).squeeze()
+    mmin, mmax = x.min(), x.max()
+    x = (x - mmin) / (mmax - mmin)
+    x = x * 4 - 2
+    y = (y - mmin) / (mmax - mmin)
+    y = y * 4 - 2
+    from sklearn.metrics import mean_squared_error
+    mse_result = mean_squared_error(x, y)
+    print(f'(s, next_s) MSE: {mse_result}')
+
+    # interp
+    interp_n = 10
+    interped_x = np.zeros((x.shape[0], interp_n))
+    for k in range(x.shape[0]):
+        interped_x[k] = np.linspace(x[k], y[k], interp_n)
+    x = interped_x
+
+    # plot data with color of value
+    plt.figure(figsize=(10, 6))
+    plt.ylim([-2, 2])
+
+    # 绘制每条线
+    for i in range(x.shape[0]):
+        plt.plot(range(1, interp_n+1), x[i], color='blue', alpha=0.03, marker=None)  # 不显示数据点
+
+    # 设置图例、标题和标签等（如果需要）
+    plt.title(f'transition_origin_plan, mse: {mse_result}, mse_loss: {mean_squared_error(reduced_gt_next_z, reduced_predicted_next_z)}')
+    plt.xlabel('timestep')
+    plt.ylabel('Value')
+
+    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_origin_plan.png')
+
+
 
 
 if __name__ == '__main__':

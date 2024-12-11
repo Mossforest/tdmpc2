@@ -116,7 +116,7 @@ class OfflineTrainer(Trainer):
         td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
         # norm
         td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
-        obs[-1] = (obs[-1] + 1) / 7.0 - 1
+        td['s'][:, -1] = (td['s'][:, -1] + 1) / 7.0 - 1
         reward_mean = torch.mean(td['r'])
         reward_std = torch.std(td['r'])
         reward_dict = {'mean': reward_mean, 'std': reward_std}
@@ -145,7 +145,7 @@ class OfflineTrainer(Trainer):
             td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
             # norm
             td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
-            obs[-1] = (obs[-1] + 1) / 7.0 - 1
+            td['s'][:, -1] = (td['s'][:, -1] + 1) / 7.0 - 1
             td['r'] = (td['r'] / reward_mean) / reward_std   # (miu=0, sigma=1)
             try:
                 _cfg.episode_length = td.shape[1]

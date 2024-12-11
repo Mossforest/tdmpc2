@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: flow_tspan3 # sub_task = exp_name
-exp_name: flow_tspan3
+sub_task: flow_wd2 # sub_task = exp_name
+exp_name: flow_wd2
 
 # environment
 multitask: false
@@ -28,7 +28,7 @@ flow_coef: 1.0
 consistency_t_step: 18
 rho: 0.5
 lr: 5e-4
-weight_decay: 1e-4
+weight_decay: 1e-5
 enc_lr_scale: 0.3
 grad_clip_norm: 5
 tau: 0.01
