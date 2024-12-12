@@ -110,22 +110,25 @@ def evaluate(cfg: dict):
     data_next_s = np.asarray(td['next_s'])
     data_a = np.asarray(td['a'])
 
-    predicted_next_x = np.zeros(data_next_s.shape)
     obs = data_s / 100.0 * 2 - 1  # norm -> [-1, 1]
     obs[:, -1] = (obs[:, -1] + 1) / 7.0 - 1
+    predicted_next_x = [None] * obs.shape[0]
     for k in range(obs.shape[0]):
         s0 = torch.Tensor(obs[k]).unsqueeze(0).to(agent.device)
         action = torch.Tensor(data_a[k]).unsqueeze(0).to(agent.device)
-        s = agent.model.next(s0, action, t_step=cfg.consistency_t_step)
+        s = agent.model.next_process(s0, action, t_step=cfg.consistency_t_step).squeeze()
         predicted_next_x[k] = s.cpu().detach().numpy()
     predicted_next_x = np.stack(predicted_next_x, axis=0)
-    predicted_next_x[:, -1] = (predicted_next_x[:, -1] + 1) * 7. - 1
+    predicted_next_x[:, :, -1] = (predicted_next_x[:, :, -1] + 1) * 7. - 1
     predicted_next_s = (predicted_next_x + 1) * 100 / 2.
 
     pca_params = np.load('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/gt_pca_parameters.npy',
                          allow_pickle=True).item()
     reduced_s = apply_pca_parameters(data_s[:, 1:], pca_params)
-    reduced_next_s = apply_pca_parameters(predicted_next_s[:, 1:], pca_params)
+    reduced_shape = predicted_next_s.shape
+    predicted_next_s = predicted_next_s[:, :, 1:].reshape(-1, 5)
+    reduced_next_s = apply_pca_parameters(predicted_next_s, pca_params)
+    reduced_next_s = reduced_next_s.reshape(reduced_shape[0], reduced_shape[1], 1)
 
     # transform data
     x = reduced_s.astype(np.float32).squeeze()
@@ -136,14 +139,15 @@ def evaluate(cfg: dict):
     y = (y - mmin) / (mmax - mmin)
     y = y * 4 - 2
     from sklearn.metrics import mean_squared_error
-    mse_result = mean_squared_error(x, y)
+    mse_result = mean_squared_error(x, y[:, -1])
     print(f'(s, next_s) MSE: {mse_result}')
 
     # interp
-    interp_n = 10
-    interped_x = np.zeros((x.shape[0], interp_n))
-    for k in range(x.shape[0]):
-        interped_x[k] = np.linspace(x[k], y[k], interp_n)
+    interp_n = cfg.consistency_t_step
+    interped_x = y
+    # interped_x = np.zeros((x.shape[0], interp_n))
+    # for k in range(x.shape[0]):
+    #     interped_x[k] = np.linspace(x[k], y[k], interp_n)
     x = interped_x
 
     # plot data with color of value
@@ -155,11 +159,11 @@ def evaluate(cfg: dict):
         plt.plot(range(1, interp_n+1), x[i], color='blue', alpha=0.03, marker=None)  # 不显示数据点
 
     # 设置图例、标题和标签等（如果需要）
-    plt.title(f'transition_flow_wm, mse: {mse_result}')
+    plt.title(f'transition_flow, mse: {mse_result}')
     plt.xlabel('timestep')
     plt.ylabel('Value')
 
-    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_flow_wm_tspan3.png')
+    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_flow_flowloss_only_re.png')
 
 
 if __name__ == '__main__':

@@ -295,6 +295,14 @@ class WorldModel_Flow(nn.Module):
         t_span = torch.linspace(0.0, 1.0, t_step) # 32)
         z_ = self._dynamics.sample(x_0=z, t_span=t_span, condition=a, with_grad=True)
         return z_
+    
+    def next_process(self, z, a, t_step=12):
+        """
+        Predicts the next latent state given the current latent state and action.
+        """
+        t_span = torch.linspace(0.0, 1.0, t_step) # 32)
+        z_ = self._dynamics.sample_forward_process(x_0=z, t_span=t_span, condition=a, with_grad=True)
+        return z_
 
     def reward(self, z, a, task):
         """
