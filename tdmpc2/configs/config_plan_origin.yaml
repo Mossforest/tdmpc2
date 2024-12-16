@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-plan
-sub_task: pretrain # scratch # sub_task = exp_name
-exp_name: pretrain
+sub_task: pretrain-re # scratch # sub_task = exp_name
+exp_name: pretrain-re
 
 # environment
 multitask: false
@@ -13,7 +13,7 @@ action_type: continuous
 observation_type: classic
 
 # evaluation
-checkpoint: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-plan/pretrain/models/final.pt # null
+checkpoint: null
 eval_episodes: 1
 eval_freq: 1_000
 eval_enable: true
@@ -23,9 +23,10 @@ steps: 50_000
 batch_size: 1024
 reward_coef: 0.1
 value_coef: 0.1
-consistency_coef: 20
+consistency_coef: 2.0
 rho: 0.5
 lr: 3e-4
+weight_decay: 1e-6
 enc_lr_scale: 0.3
 grad_clip_norm: 20
 tau: 0.01
@@ -36,7 +37,7 @@ buffer_size: 10_000
 eval_buffer_size: 1_000
 data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
 eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
-pretrained_path: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/origin/models/1000.pt
+pretrained_path: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/origin_re/models/29000.pt
 
 # planning
 mpc: true

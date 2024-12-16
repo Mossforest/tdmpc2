@@ -23,13 +23,13 @@ from common.logger import Logger
 torch.backends.cudnn.benchmark = True
 
 
-@hydra.main(config_name='config_transition_flow2_2', config_path='configs')
+@hydra.main(config_name='config_test', config_path='configs')
 def train(cfg: dict):
     """
     Script for training single-task / multi-task TD-MPC2 agents.
 
     Most relevant args:
-        `task`: task name (or mt30/mt80 for multi-task training) 
+        `task`: task name (or mt30/mt80 for multi-task training)
         `model_size`: model size, must be one of `[1, 5, 19, 48, 317]` (default: 5)
         `steps`: number of training/environment steps (default: 10M)
         `seed`: random seed (default: 1)

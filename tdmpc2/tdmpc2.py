@@ -7,6 +7,7 @@ from termcolor import colored
 from common import math
 from common.scale import RunningScale
 from common.world_model import WorldModel, WorldModel_Flow
+from common.optim import configure_weight_decay
 
 
 class TDMPC2:
@@ -25,9 +26,11 @@ class TDMPC2:
             print(f'loaded pretrained model from', colored(cfg.pretrained_path, 'yellow', attrs=['bold']))
         else:
             print(colored('train from scratch', 'yellow', attrs=['bold']))
+        # wd list
+        dynamic_params_1, dynamic_params_2 = configure_weight_decay(self.model._dynamics, self.cfg.weight_decay)
         self.optim = torch.optim.Adam([
             {'params': self.model._encoder.parameters(), 'lr': self.cfg.lr*self.cfg.enc_lr_scale},
-            {'params': self.model._dynamics.parameters()},
+            dynamic_params_1, dynamic_params_2,
             {'params': self.model._reward.parameters()},
             {'params': self.model._Qs.parameters()},
             {'params': self.model._task_emb.parameters() if self.cfg.multitask else []}
@@ -405,9 +408,11 @@ class TDMPC2_Flow:
             print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
         else:
             print(colored('train from scratch', 'yellow', attrs=['bold']))
+        # wd list
+        dynamic_params_1, dynamic_params_2 = configure_weight_decay(self.model._dynamics, self.cfg.weight_decay)
         self.optim = torch.optim.Adam([
             {'params': self.model._encoder.parameters(), 'lr': self.cfg.lr*self.cfg.enc_lr_scale},
-            {'params': self.model._dynamics.parameters()},
+            dynamic_params_1, dynamic_params_2,
             {'params': self.model._reward.parameters()},
             {'params': self.model._Qs.parameters()},
             {'params': self.model._task_emb.parameters() if self.cfg.multitask else []}

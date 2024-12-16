@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: origin # sub_task = exp_name
-exp_name: origin
+sub_task: origin_re # sub_task = exp_name
+exp_name: origin_re
 
 # environment
 multitask: false
@@ -23,9 +23,10 @@ steps: 50_000
 batch_size: 1024
 reward_coef: 0.1
 value_coef: 0.1
-consistency_coef: 20
+consistency_coef: 2.0
 rho: 0.5
 lr: 3e-4
+weight_decay: 1e-6
 enc_lr_scale: 0.3
 grad_clip_norm: 20
 tau: 0.01

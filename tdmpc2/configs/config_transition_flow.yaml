@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: flow_wd4 # sub_task = exp_name
-exp_name: flow_wd4
+sub_task: flow_wdlist # sub_task = exp_name
+exp_name: flow_wdlist
 
 # environment
 multitask: false
