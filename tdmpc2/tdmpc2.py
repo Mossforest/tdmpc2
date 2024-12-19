@@ -405,7 +405,7 @@ class TDMPC2_Flow:
         self.model = WorldModel_Flow(cfg, self.device).to(self.device)
         if cfg.pretrained_path:
             self.load(cfg.pretrained_path)
-            print(f'loaded pretrained model from', colored(cfg.cfg.pretrained_path, 'yellow', attrs=['bold']))
+            print(f'loaded pretrained model from', colored(cfg.pretrained_path, 'yellow', attrs=['bold']))
         else:
             print(colored('train from scratch', 'yellow', attrs=['bold']))
         # wd list
@@ -474,28 +474,28 @@ class TDMPC2_Flow:
             torch.Tensor: Action to take in the environment.
         """
         obs = obs.to(self.device, non_blocking=True).unsqueeze(0)
-        if task is not None:
-            task = torch.tensor([task], device=self.device)
-        z = self.model.encode(obs, task)
         if self.cfg.mpc:
-            a = self.plan(z, t0=t0, eval_mode=eval_mode, task=task)
+            a = self.plan(obs, t0=t0, eval_mode=eval_mode, task=task)
         else:
+            z = self.model.encode(obs, task)
             a = self.model.pi(z, task)[int(not eval_mode)][0]
         return a.cpu()
 
     @torch.no_grad()
-    def _estimate_value(self, z, actions, task):
+    def _estimate_value(self, obs, actions, task):
         """Estimate value of a trajectory starting at latent state z and executing given actions."""
         G, discount = 0, 1
         for t in range(self.cfg.horizon):
+            z = self.model.encode(obs, task)
             reward = math.two_hot_inv(self.model.reward(z, actions[t], task), self.cfg)
-            z = self.model.next(z, actions[t], task)
+            obs = self.model.next(obs, actions[t], t_step=self.cfg.consistency_t_step)
             G += discount * reward
             discount *= self.discount[torch.tensor(task)] if self.cfg.multitask else self.discount
+        z = self.model.encode(obs, task)
         return G + discount * self.model.Q(z, self.model.pi(z, task)[1], task, return_type='avg')
 
     @torch.no_grad()
-    def plan(self, z, t0=False, eval_mode=False, task=None):
+    def plan(self, obs, t0=False, eval_mode=False, task=None):
         """
         Plan a sequence of actions using the learned world model.
         
@@ -511,14 +511,16 @@ class TDMPC2_Flow:
         # Sample policy trajectories
         if self.cfg.num_pi_trajs > 0:
             pi_actions = torch.empty(self.cfg.horizon, self.cfg.num_pi_trajs, self.cfg.action_dim, device=self.device)
-            _z = z.repeat(self.cfg.num_pi_trajs, 1)
+            _obs = obs.repeat(self.cfg.num_pi_trajs, 1)
             for t in range(self.cfg.horizon-1):
+                _z = self.model.encode(_obs, task)
                 pi_actions[t] = self.model.pi(_z, task)[1]
-                _z = self.model.next(_z, pi_actions[t], task)
+                _obs = self.model.next(_obs, pi_actions[t], t_step=self.cfg.consistency_t_step)
+            _z = self.model.encode(_obs, task)
             pi_actions[-1] = self.model.pi(_z, task)[1]
 
         # Initialize state and parameters
-        z = z.repeat(self.cfg.num_samples, 1)
+        obs = obs.repeat(self.cfg.num_samples, 1)
         mean = torch.zeros(self.cfg.horizon, self.cfg.action_dim, device=self.device)
         std = self.cfg.max_std*torch.ones(self.cfg.horizon, self.cfg.action_dim, device=self.device)
         if not t0:
@@ -538,7 +540,7 @@ class TDMPC2_Flow:
                 actions = actions * self.model._action_masks[task]
 
             # Compute elite actions
-            value = self._estimate_value(z, actions, task).nan_to_num_(0)
+            value = self._estimate_value(obs, actions, task).nan_to_num_(0)
             elite_idxs = torch.topk(value.squeeze(1), self.cfg.num_elites, dim=0).indices
             elite_value, elite_actions = value[elite_idxs], actions[:, elite_idxs]
 
@@ -618,6 +620,8 @@ class TDMPC2_Flow:
             dict: Dictionary of training statistics.
         """
         obs, action, reward, task = buffer.sample()
+        obs = obs.float()
+        action = action.float()
     
         # Compute targets only (no use of next_z)
         with torch.no_grad():
@@ -638,7 +642,7 @@ class TDMPC2_Flow:
         flow_matching_loss = 0
         for t in range(self.cfg.horizon):
             s0 = s
-            s = self.model.next(s0, action[t])  # raw
+            s = self.model.next(s0, action[t], t_step=self.cfg.consistency_t_step)  # raw
             consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
             flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
             states[t+1] = s

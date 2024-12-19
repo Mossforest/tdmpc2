@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-plan
-sub_task: origin-pretrain-re # scratch # sub_task = exp_name
-exp_name: origin-pretrain-re
+sub_task: flow-wdlist # sub_task = exp_name
+exp_name: flow-wdlist
 
 # environment
 multitask: false
@@ -24,11 +24,13 @@ batch_size: 1024
 reward_coef: 0.1
 value_coef: 0.1
 consistency_coef: 2.0
+flow_coef: 1.0
+consistency_t_step: 18
 rho: 0.5
-lr: 3e-4
+lr: 5e-4
 weight_decay: 1e-6
 enc_lr_scale: 0.3
-grad_clip_norm: 20
+grad_clip_norm: 5
 tau: 0.01
 discount_denom: 5
 discount_min: 0.95
@@ -37,7 +39,7 @@ buffer_size: 10_000
 eval_buffer_size: 1_000
 data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
 eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
-pretrained_path: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/origin_re/models/29000.pt
+pretrained_path: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/flow_wdlist/models/48000.pt
 
 # planning
 mpc: true
@@ -61,7 +63,6 @@ vmin: -10
 vmax: +10
 
 # architecture
-obs: state
 model_size: 5
 num_enc_layers: 2
 enc_dim: 256
@@ -73,6 +74,12 @@ task_dim: 0
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
+flow_model: unet
+unet_hidden_sizes: [64, 128, 256]
+transition_hidden_dim: 512
+condition_hidden_dim: 32
+t_condition_hidden_dim: 128
+t_dim: 32
 
 # logging
 wandb_entity: moss_chen
@@ -89,6 +96,7 @@ dynamic_save_path: null
 seed: 212
 
 # convenience
+obs: state
 work_dir: ???
 task_title: ???
 obs_shape: ???

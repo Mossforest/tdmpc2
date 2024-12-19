@@ -15,7 +15,7 @@ class OnlineTrainer(Trainer):
         self._step = 0
         self._ep_idx = 0
         self._start_time = time()
-        self.reward_dict = np.load('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/reward_params.npy', allow_pickle=True)
+        self.reward_dict = np.load('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/reward_params.npy', allow_pickle=True).item()
 
     def common_metrics(self):
         """Return a dictionary of current metrics."""
@@ -39,7 +39,7 @@ class OnlineTrainer(Trainer):
                 obs, reward, done, info = self.env.step(action)
                 obs = obs / 100.0 * 2 - 1  # norm -> [-1, 1]
                 obs[-1] = (obs[-1] + 1) / 7.0 - 1
-                normed_reward = (reward / self.reward_dict['mean']) / self.reward_dict['std']
+                normed_reward = (reward - self.reward_dict['mean'].item()) / self.reward_dict['std'].item()
                 ep_reward += normed_reward
                 t += 1
                 if self.cfg.save_video:
@@ -109,7 +109,7 @@ class OnlineTrainer(Trainer):
             obs, reward, done, info = self.env.step(action)
             obs = obs / 100.0 * 2 - 1  # norm -> [-1, 1]
             obs[-1] = (obs[-1] + 1) / 7.0 - 1
-            normed_reward = (reward / self.reward_dict['mean']) / self.reward_dict['std']
+            normed_reward = (reward - self.reward_dict['mean'].item()) / self.reward_dict['std'].item()
             self._tds.append(self.to_td(obs, action, normed_reward))
 
             # Update agent
