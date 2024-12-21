@@ -406,7 +406,175 @@ class WorldModel_Flow(nn.Module):
                     ),
                 ),
             )),
-            
+
+            'unet_norm': EasyDict(dict(
+                device=device,
+                x_size=[cfg.state_dim],
+                alpha=1.0,
+                solver=dict(
+                    type="ODESolver",
+                    args=dict(
+                        library="torchdiffeq_adjoint",
+                    ),
+                ),
+                path=dict(
+                    sigma=0.1,
+                ),
+                model=dict(
+                    type="velocity_function",
+                    args=dict(
+                        t_encoder=dict(
+                            type="GaussianFourierProjectionTimeEncoder",
+                            args=dict(
+                                embed_dim=cfg.t_dim,
+                                scale=30.0,
+                            ),
+                        ),
+                        x_encoder = dict(
+                            type="MLPEncoder",
+                            args=dict(
+                                in_dim=cfg.state_dim,
+                                mlp_dims=max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim],
+                                out_dim=cfg.latent_dim,
+                                simnorm_dim=cfg.simnorm_dim,
+                            ),
+                        ),
+                        x_decoder = dict(
+                            type="MLPDecoder",
+                            args=dict(
+                                in_dim=cfg.latent_dim,
+                                mlp_dims=max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim],
+                                out_dim=cfg.state_dim,
+                            ),
+                        ),
+                        backbone=dict(
+                            type="TemporalSpatialResidualNet",
+                            args=dict(
+                                hidden_sizes=cfg.unet_hidden_sizes,
+                                input_dim=cfg.latent_dim,
+                                output_dim=cfg.latent_dim,
+                                t_dim=cfg.t_dim,
+                                condition_dim=cfg.action_dim,
+                                condition_hidden_dim=cfg.condition_hidden_dim,
+                                t_condition_hidden_dim=cfg.t_condition_hidden_dim,
+                            ),
+                        ),
+                    ),
+                ),
+            )),
+
+
+            'unet_allnorm': EasyDict(dict(
+                device=device,
+                x_size=[cfg.state_dim],
+                alpha=1.0,
+                solver=dict(
+                    type="ODESolver",
+                    args=dict(
+                        library="torchdiffeq_adjoint",
+                    ),
+                ),
+                path=dict(
+                    sigma=0.1,
+                ),
+                model=dict(
+                    type="velocity_function",
+                    args=dict(
+                        t_encoder=dict(
+                            type="GaussianFourierProjectionTimeEncoder",
+                            args=dict(
+                                embed_dim=cfg.t_dim,
+                                scale=30.0,
+                            ),
+                        ),
+                        x_encoder = dict(
+                            type="MLPEncoder",
+                            args=dict(
+                                in_dim=cfg.state_dim,
+                                mlp_dims=max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim],
+                                out_dim=cfg.latent_dim,
+                                simnorm_dim=cfg.simnorm_dim,
+                            ),
+                        ),
+                        x_decoder = dict(
+                            type="MLPDecoder",
+                            args=dict(
+                                in_dim=cfg.latent_dim,
+                                mlp_dims=max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim],
+                                out_dim=cfg.state_dim,
+                            ),
+                        ),
+                        backbone=dict(
+                            type="NormedTemporalSpatialResidualNet",
+                            args=dict(
+                                hidden_sizes=cfg.unet_hidden_sizes,
+                                input_dim=cfg.latent_dim,
+                                output_dim=cfg.latent_dim,
+                                t_dim=cfg.t_dim,
+                                condition_dim=cfg.action_dim,
+                                condition_hidden_dim=cfg.condition_hidden_dim,
+                                t_condition_hidden_dim=cfg.t_condition_hidden_dim,
+                            ),
+                        ),
+                    ),
+                ),
+            )),
+
+            'origin_ref': EasyDict(dict(
+                device=device,
+                x_size=[cfg.state_dim],
+                alpha=1.0,
+                solver=dict(
+                    type="ODESolver",
+                    args=dict(
+                        library="torchdiffeq_adjoint",
+                    ),
+                ),
+                path=dict(
+                    sigma=0.1,
+                ),
+                model=dict(
+                    type="velocity_function",
+                    args=dict(
+                        t_encoder=dict(
+                            type="GaussianFourierProjectionTimeEncoder",
+                            args=dict(
+                                embed_dim=cfg.t_dim,
+                                scale=30.0,
+                            ),
+                        ),
+                        x_encoder = dict(
+                            type="MLPEncoder",
+                            args=dict(
+                                in_dim=cfg.state_dim,
+                                mlp_dims=max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim],
+                                out_dim=cfg.latent_dim,
+                                simnorm_dim=cfg.simnorm_dim,
+                            ),
+                        ),
+                        x_decoder = dict(
+                            type="MLPDecoder",
+                            args=dict(
+                                in_dim=cfg.latent_dim,
+                                mlp_dims=max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim],
+                                out_dim=cfg.state_dim,
+                            ),
+                        ),
+                        backbone=dict(   # origin_ref
+                            type="MLPBackbone", # for arranging layernorm
+                            args=dict(
+                                in_dim=cfg.latent_dim + cfg.action_dim + cfg.t_dim,
+                                mlp_dims=2*[cfg.mlp_dim],
+                                out_dim=cfg.latent_dim,
+                                simnorm_dim=cfg.simnorm_dim,
+                            ),
+                        ),
+                    ),
+                ),
+            )),
+
+
+
             
             'gnn': EasyDict(dict(
                 device=device,

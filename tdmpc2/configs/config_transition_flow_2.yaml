@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: flow_simnorm # sub_task = exp_name
-exp_name: flow_simnorm
+sub_task: flow_allnorm # sub_task = exp_name
+exp_name: flow_allnorm
 
 # environment
 multitask: false
@@ -74,7 +74,7 @@ task_dim: 0
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
-flow_model: unet_norm
+flow_model: unet_allnorm
 unet_hidden_sizes: [512, 512, 1024]
 transition_hidden_dim: 512
 condition_hidden_dim: 32
