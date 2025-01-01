@@ -64,7 +64,7 @@ def apply_pca_parameters(data_2, pca_parameters):
     
     return reduced_data_2
 
-@hydra.main(config_name='config_transition_flow1', config_path='configs')
+@hydra.main(config_name='config_drawtrans_flow', config_path='configs')
 def evaluate(cfg: dict):
     """
     Script for evaluating a single-task / multi-task TD-MPC2 checkpoint.
@@ -159,11 +159,11 @@ def evaluate(cfg: dict):
         plt.plot(range(1, interp_n+1), x[i], color='blue', alpha=0.03, marker=None)  # 不显示数据点
 
     # 设置图例、标题和标签等（如果需要）
-    plt.title(f'transition_flow, mse: {mse_result}')
+    plt.title(f'transition_{cfg.exp_name}, mse: {mse_result}')
     plt.xlabel('timestep')
     plt.ylabel('Value')
 
-    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_flow_flowloss_only_re.png')
+    plt.savefig(f'/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_{cfg.exp_name}.png')
 
 
 if __name__ == '__main__':

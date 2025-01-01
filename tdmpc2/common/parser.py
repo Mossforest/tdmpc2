@@ -4,7 +4,7 @@ from pathlib import Path
 import hydra
 from omegaconf import OmegaConf
 
-from common import MODEL_SIZE, TASK_SET
+from common import TASK_SET
 
 
 def parse_cfg(cfg: OmegaConf) -> OmegaConf:
@@ -37,12 +37,5 @@ def parse_cfg(cfg: OmegaConf) -> OmegaConf:
     # Convenience
     cfg.work_dir = Path(hydra.utils.get_original_cwd()) / 'logs' / cfg.task / cfg.exp_name
     cfg.bin_size = (cfg.vmax - cfg.vmin) / (cfg.num_bins-1) # Bin size for discrete regression
-
-    # Model size
-    if cfg.get('model_size', None) is not None:
-        assert cfg.model_size in MODEL_SIZE.keys(), \
-            f'Invalid model size {cfg.model_size}. Must be one of {list(MODEL_SIZE.keys())}'
-        for k, v in MODEL_SIZE[cfg.model_size].items():
-            cfg[k] = v
 
     return cfg

@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: origin_thinner100 # sub_task = exp_name
-exp_name: origin_thinner100
+sub_task: origin_sampled # sub_task = exp_name
+exp_name: origin_sampled
 
 # environment
 multitask: false
@@ -13,7 +13,7 @@ action_type: continuous
 observation_type: classic
 
 # evaluation
-checkpoint: null
+checkpoint: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/origin_sampled/models/final.pt
 eval_episodes: 1
 eval_freq: 1_000
 eval_enable: true
@@ -33,9 +33,9 @@ tau: 0.01
 discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
-buffer_size: 100
+buffer_size: 1_000
 eval_buffer_size: 1_000
-data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_sampled100.pkl
+data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_sampled.pkl
 eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
 pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
 
@@ -64,11 +64,11 @@ vmax: +10
 obs: state
 model_size: 5
 num_enc_layers: 2
-enc_dim: 32
+enc_dim: 256
 num_channels: 32
-mlp_dim: 64
+mlp_dim: 512
 state_dim: 6
-latent_dim: 64
+latent_dim: 512
 task_dim: 0
 num_q: 5
 dropout: 0.01

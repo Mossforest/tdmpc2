@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: flow_originref4 # sub_task = exp_name
-exp_name: flow_originref4
+sub_task: flow_originref_thinner100 # sub_task = exp_name
+exp_name: flow_originref_thinner100
 
 # environment
 multitask: false
@@ -28,16 +28,16 @@ flow_coef: 1.0
 consistency_t_step: 18
 rho: 0.5
 lr: 5e-4
-weight_decay: 1e-5
+weight_decay: 1e-6
 enc_lr_scale: 0.3
 grad_clip_norm: 5
 tau: 0.01
 discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
-buffer_size: 10_000
+buffer_size: 100
 eval_buffer_size: 1_000
-data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
+data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_sampled100.pkl
 eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
 pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
 
@@ -65,18 +65,18 @@ vmax: +10
 # architecture
 model_size: 5
 num_enc_layers: 2
-enc_dim: 256
+enc_dim: 32
 num_channels: 32
-mlp_dim: 512
+mlp_dim: 64
 state_dim: 6
-latent_dim: 512
+latent_dim: 64
 task_dim: 0
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
 flow_model: origin_ref
-unet_hidden_sizes: [512, 512, 1024]
-transition_hidden_dim: 512
+unet_hidden_sizes: [64, 64, 64]
+transition_hidden_dim: 64
 condition_hidden_dim: 32
 t_condition_hidden_dim: 128
 t_dim: 32

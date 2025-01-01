@@ -101,8 +101,7 @@ def pca_to_1d(data, n_components=1):
     
     return pca_parameters, reduced_data
 
-
-@hydra.main(config_name='config_plan_origin1', config_path='configs')
+@hydra.main(config_name='config_drawtrans_origin', config_path='configs')
 def evaluate(cfg: dict):
     """
     Script for evaluating a single-task / multi-task TD-MPC2 checkpoint.
@@ -161,6 +160,10 @@ def evaluate(cfg: dict):
         predicted_next_z[k] = z.cpu().detach().numpy()
     predicted_next_z = np.stack(predicted_next_z, axis=0)
     gt_z = gt_z.cpu().detach().numpy()
+    # obs = obs.cpu().detach().numpy()
+    # print(f'obs  mean: {np.mean(obs )}, std: {np.std(obs )}')
+    # print(f'gt_z mean: {np.mean(gt_z)}, std: {np.std(gt_z)}')
+    # exit()
     
     next_obs = data_next_s / 100.0 * 2 - 1  # norm -> [-1, 1]
     next_obs[:, -1] = (next_obs[:, -1] + 1) / 7.0 - 1
@@ -202,11 +205,11 @@ def evaluate(cfg: dict):
         plt.plot(range(1, interp_n+1), x[i], color='blue', alpha=0.03, marker=None)  # 不显示数据点
 
     # 设置图例、标题和标签等（如果需要）
-    plt.title(f'transition_origin_plan_gt, mse: {mse_result}')
+    plt.title(f'transition_{cfg.exp_name}_gt, mse: {mse_result}')
     plt.xlabel('timestep')
     plt.ylabel('Value')
 
-    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_origin_plan_gt.png')
+    plt.savefig(f'/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_{cfg.exp_name}_gt.png')
 
 
 
@@ -243,7 +246,7 @@ def evaluate(cfg: dict):
     plt.xlabel('timestep')
     plt.ylabel('Value')
 
-    plt.savefig('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_origin_plan.png')
+    plt.savefig(f'/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/transition_{cfg.exp_name}.png')
 
 
 

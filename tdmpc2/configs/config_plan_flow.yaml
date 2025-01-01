@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-plan
-sub_task: flow-wdlist # sub_task = exp_name
-exp_name: flow-wdlist
+sub_task: flow-originref # sub_task = exp_name
+exp_name: flow-originref
 
 # environment
 multitask: false
@@ -39,7 +39,7 @@ buffer_size: 10_000
 eval_buffer_size: 1_000
 data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
 eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
-pretrained_path: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/flow_wdlist/models/48000.pt
+pretrained_path: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/logs/tdmpc2-transition/flow_originref/models/final.pt
 
 # planning
 mpc: true
@@ -74,8 +74,8 @@ task_dim: 0
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
-flow_model: unet
-unet_hidden_sizes: [64, 128, 256]
+flow_model: origin_ref
+unet_hidden_sizes: [512, 512, 1024]
 transition_hidden_dim: 512
 condition_hidden_dim: 32
 t_condition_hidden_dim: 128
