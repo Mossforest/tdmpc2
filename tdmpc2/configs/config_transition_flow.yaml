@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: flow_simnorm # sub_task = exp_name
-exp_name: flow_simnorm
+sub_task: flow_kl # sub_task = exp_name
+exp_name: flow_kl
 
 # environment
 multitask: false
@@ -35,10 +35,10 @@ tau: 0.01
 discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
-buffer_size: 10_000
-eval_buffer_size: 1_000
-data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo.pkl
-eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
+buffer_size: 1000
+eval_buffer_size: 100
+data_dir: /mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample.pkl
+eval_data_dir: /mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample_eval.pkl
 pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
 
 # planning
@@ -65,18 +65,18 @@ vmax: +10
 # architecture
 model_size: 5
 num_enc_layers: 2
-enc_dim: 256
+enc_dim: 32
 num_channels: 32
-mlp_dim: 512
+mlp_dim: 64
 state_dim: 6
-latent_dim: 512
+latent_dim: 64
 task_dim: 0
 num_q: 5
 dropout: 0.01
 simnorm_dim: 8
-flow_model: unet_norm
-unet_hidden_sizes: [512, 512, 1024]
-transition_hidden_dim: 512
+flow_model: origin_ref
+unet_hidden_sizes: [64, 64, 64]
+transition_hidden_dim: 64
 condition_hidden_dim: 32
 t_condition_hidden_dim: 128
 t_dim: 32

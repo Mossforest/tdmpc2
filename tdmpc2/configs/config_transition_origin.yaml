@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: tdmpc2-transition
-sub_task: origin_thinner100 # sub_task = exp_name
-exp_name: origin_thinner100
+sub_task: origin_kl # sub_task = exp_name
+exp_name: origin_kl
 
 # environment
 multitask: false
@@ -33,10 +33,10 @@ tau: 0.01
 discount_denom: 5
 discount_min: 0.95
 discount_max: 0.995
-buffer_size: 100
-eval_buffer_size: 1_000
-data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_sampled100.pkl
-eval_data_dir: /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/industrialbenchmark-master/industrial_benchmark_python/data/data_demo_eval.pkl
+buffer_size: 1000
+eval_buffer_size: 100
+data_dir: /mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample.pkl
+eval_data_dir: /mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample_eval.pkl
 pretrained_path: null #/root/tdmpc2/logs/mtgrab15/212/default-mt15-interrupted/models/1150000.pt
 
 # planning

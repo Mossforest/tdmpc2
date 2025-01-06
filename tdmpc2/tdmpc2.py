@@ -309,15 +309,21 @@ class TDMPC2:
         Returns:
             dict: Dictionary of training statistics.
         """
-        obs, action, reward, task = buffer.sample()
+        obs, action, reward, next_s_samples, r_samples, task = buffer.sample()
         obs = obs.float()
         action = action.float()
+        next_s_samples = next_s_samples.float()
         task = torch.tensor([0])
 
         # Compute targets
         with torch.no_grad():
             next_z = self.model.encode(obs[1:], task)
             td_targets = self._td_target(next_z, reward, task)
+            
+            # multiple next_z samples
+            next_z_samples = torch.empty(self.cfg.horizon, self.cfg.batch_size, next_s_samples.shape[2], self.cfg.latent_dim, device=self.device)
+            for i in range(next_s_samples.shape[2]):
+                next_z_samples[:, :, i, :] = self.model.encode(next_s_samples[:, :, i, :], task)
 
         # Prepare for update
         self.optim.zero_grad(set_to_none=True)
@@ -328,13 +334,24 @@ class TDMPC2:
         z = self.model.encode(obs[0], task)
         zs[0] = z
         consistency_loss = 0
+        distribution_loss = 0
+        first_distribution_loss = None
         for t in range(self.cfg.horizon):
             z = self.model.next(z, action[t], task)
             consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
+            repeated_z = z.unsqueeze(1).repeat(1, next_z_samples.shape[2], 1)
+            distribution_loss += F.kl_div(
+                F.log_softmax(repeated_z, dim=2),
+                F.softmax(next_z_samples[t], dim=2),
+                reduction='batchmean'
+            )
+            if first_distribution_loss is None:
+                first_distribution_loss = distribution_loss
             zs[t+1] = z
 
         # Compute losses
         consistency_loss *= (1/self.cfg.horizon)
+        distribution_loss *= (1/self.cfg.horizon)
         total_loss = consistency_loss
 
         # Update model
@@ -348,6 +365,8 @@ class TDMPC2:
             "train/consistency_loss": float(consistency_loss.mean().item()),
             "train/total_loss": float(total_loss.mean().item()),
             "train/grad_norm": float(grad_norm),
+            "train/first_distribution_loss": float(first_distribution_loss.mean().item()),
+            "train/distribution_loss": float(distribution_loss.mean().item()),
         }
 
 
@@ -361,34 +380,54 @@ class TDMPC2:
         Returns:
             dict: Dictionary of training statistics.
         """
-        obs, action, reward, task = buffer.sample()
+        obs, action, reward, next_s_samples, r_samples, task = buffer.sample()
         obs = obs.float()
         action = action.float()
+        next_s_samples = next_s_samples.float()
         self.model.eval()
 
         # Compute targets
         with torch.no_grad():
             next_z = self.model.encode(obs[1:], task)
             td_targets = self._td_target(next_z, reward, task)
+        
+            # multiple next_z samples
+            next_z_samples = torch.empty(self.cfg.horizon, self.cfg.batch_size, next_s_samples.shape[2], self.cfg.latent_dim, device=self.device)
+            for i in range(next_s_samples.shape[2]):
+                next_z_samples[:, :, i, :] = self.model.encode(next_s_samples[:, :, i, :], task)
 
         # Latent rollout
         zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
         z = self.model.encode(obs[0], task)
         zs[0] = z
         consistency_loss = 0
+        distribution_loss = 0
+        first_distribution_loss = None
         for t in range(self.cfg.horizon):
             z = self.model.next(z, action[t], task)
             consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
+            repeated_z = z.unsqueeze(1).repeat(1, next_z_samples.shape[2], 1)
+            distribution_loss += F.kl_div(
+                F.log_softmax(repeated_z, dim=2),
+                F.softmax(next_z_samples[t], dim=2),
+                reduction='batchmean'
+            )
+            if first_distribution_loss is None:
+                first_distribution_loss = distribution_loss
             zs[t+1] = z
+            
         
         # Compute losses
         consistency_loss *= (1/self.cfg.horizon)
+        distribution_loss *= (1/self.cfg.horizon)
         total_loss = consistency_loss
 
         # Return training statistics
         return {
             "eval/consistency_loss": float(consistency_loss.mean().item()),
             "eval/total_loss": float(total_loss.mean().item()),
+            "eval/first_distribution_loss": float(first_distribution_loss.mean().item()),
+            "eval/distribution_loss": float(distribution_loss.mean().item()),
         }
 
 
@@ -704,9 +743,10 @@ class TDMPC2_Flow:
         Returns:
             dict: Dictionary of training statistics.
         """
-        obs, action, reward, task = buffer.sample()
+        obs, action, reward, next_s_samples, r_samples, task = buffer.sample()
         obs = obs.float()
         action = action.float()
+        next_s_samples = next_s_samples.float()
 
         # Prepare for update
         self.optim.zero_grad(set_to_none=True)
@@ -714,22 +754,36 @@ class TDMPC2_Flow:
 
         # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
         states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.state_dim, device=self.device)
+        multiple_states = torch.empty(self.cfg.horizon, self.cfg.batch_size, next_s_samples.shape[2], self.cfg.state_dim, device=self.device)
         # z = self.model.encode(obs[0], task)
         # zs[0] = z
         s = obs[0]
         states[0] = s
         consistency_loss = 0
         flow_matching_loss = 0
+        distribution_loss = 0
+        first_distribution_loss = None
         for t in range(self.cfg.horizon):
             s0 = s
             s = self.model.next(s0, action[t], t_step=self.cfg.consistency_t_step)  # raw
+            for i in range(next_s_samples.shape[2]):
+                # TODO: is our flow model has stochastic...?? noise true?
+                multiple_states[t, :, i, :] = self.model.next(s0, action[t], t_step=self.cfg.consistency_t_step)
             consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
             # https://github.com/opendilab/GenerativeRL/blob/3e1172ae0cbe18f311d40926d1e485b135a8e92c/grl/generative_models/model_functions/velocity_function.py#L220
             flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
+            distribution_loss += F.kl_div(
+                F.log_softmax(multiple_states[t], dim=2),
+                F.softmax(next_s_samples[t], dim=2),
+                reduction='batchmean'
+            )
+            if first_distribution_loss is None:
+                first_distribution_loss = distribution_loss
             states[t+1] = s
         
         consistency_loss *= (1/self.cfg.horizon)
         flow_matching_loss *= (1/self.cfg.horizon)
+        distribution_loss *= (1/self.cfg.horizon)
         total_loss = (
             self.cfg.consistency_coef * consistency_loss +
             self.cfg.flow_coef * flow_matching_loss
@@ -747,6 +801,8 @@ class TDMPC2_Flow:
             "train/total_loss": float(total_loss.mean().item()),
             "train/flow_matching_loss": float(flow_matching_loss.mean().item()),
             "train/grad_norm": float(grad_norm),
+            "train/distribution_loss": float(distribution_loss.mean().item()),
+            "train/first_distribution_loss": float(first_distribution_loss.mean().item()),
         }
 
 
@@ -760,29 +816,44 @@ class TDMPC2_Flow:
         Returns:
             dict: Dictionary of training statistics.
         """
-        obs, action, reward, task = buffer.sample()
+        obs, action, reward, next_s_samples, r_samples, task = buffer.sample()
         obs = obs.float()
         action = action.float()
+        next_s_samples = next_s_samples.float()
         self.model.eval()
 
         # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
         states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.state_dim, device=self.device)
+        multiple_states = torch.empty(self.cfg.horizon, self.cfg.batch_size, next_s_samples.shape[2], self.cfg.state_dim, device=self.device)
         # z = self.model.encode(obs[0], task)
         # zs[0] = z
         s = obs[0]
         states[0] = s
         consistency_loss = 0
         flow_matching_loss = 0
+        distribution_loss = 0
+        first_distribution_loss = None
         for t in range(self.cfg.horizon):
             s0 = s
             s = self.model.next(s0, action[t])  # raw
+            for i in range(next_s_samples.shape[2]):
+                # TODO: is our flow model has stochastic...?? noise true?
+                multiple_states[t, :, i, :] = self.model.next(s0, action[t], t_step=self.cfg.consistency_t_step)
             consistency_loss += F.mse_loss(s, obs[t]) * self.cfg.rho**t
             # https://github.com/opendilab/GenerativeRL/blob/3e1172ae0cbe18f311d40926d1e485b135a8e92c/grl/generative_models/model_functions/velocity_function.py#L220
             flow_matching_loss += self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
+            distribution_loss += F.kl_div(
+                F.log_softmax(multiple_states[t], dim=2),
+                F.softmax(next_s_samples[t], dim=2),
+                reduction='batchmean'
+            )
+            if first_distribution_loss is None:
+                first_distribution_loss = distribution_loss
             states[t+1] = s
         
         consistency_loss *= (1/self.cfg.horizon)
         flow_matching_loss *= (1/self.cfg.horizon)
+        distribution_loss *= (1/self.cfg.horizon)
         total_loss = (
             self.cfg.consistency_coef * consistency_loss +
             self.cfg.flow_coef * flow_matching_loss
@@ -793,6 +864,8 @@ class TDMPC2_Flow:
             "eval/consistency_loss": float(consistency_loss.mean().item()),
             "eval/total_loss": float(total_loss.mean().item()),
             "eval/flow_matching_loss": float(flow_matching_loss.mean().item()),
+            "eval/distribution_loss": float(distribution_loss.mean().item()),
+            "eval/first_distribution_loss": float(first_distribution_loss.mean().item()),
         }
 
 

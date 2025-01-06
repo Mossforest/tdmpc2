@@ -10,7 +10,7 @@ import torch
 from tqdm import tqdm
 from tensordict.tensordict import TensorDict
 
-from common.buffer import Buffer
+from common.buffer import Buffer, DistributedBuffer
 from trainer.base import Trainer
 
 
@@ -108,20 +108,36 @@ class OfflineTrainer(Trainer):
         _cfg = deepcopy(self.cfg)
         _cfg.buffer_size = self.cfg.buffer_size
         _cfg.steps = _cfg.buffer_size
-        self.buffer = Buffer(_cfg)  # 假设Buffer是你的数据缓冲区类
+        self.buffer = DistributedBuffer(_cfg)  # 假设Buffer是你的数据缓冲区类
         
         fp = self.cfg.data_dir
         with open(fp, 'rb') as f:
             td = pickle.load(f)
         td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
+        # for k in td.keys():
+        #     print(k, td[k].shape)
+        
         # norm
-        td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
-        td['s'][:, -1] = (td['s'][:, -1] + 1) / 7.0 - 1
-        reward_mean = torch.mean(td['r'])
-        reward_std = torch.std(td['r'])
-        reward_dict = {'mean': reward_mean, 'std': reward_std}
-        # np.save('/inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/chenxinyan-240108120066/chenxinyan/tdmpc2/visual/reward_params.npy', reward_dict)
+        data_param_dict = {}
+        for i in range(td['s'].shape[-1]):
+            if i == 0:
+                td['s'][:, :, i] = (td['s'][:, :, i] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
+                td['next_s_samples'][:, :, :, i] = (td['next_s_samples'][:, :, :, i] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
+            else:
+                i_mean = torch.mean(td['s'][:, :, i]).item()
+                i_std = torch.std(td['s'][:, :, i]).item()
+                td['s'][:, :, i] = (td['s'][:, :, i] - i_mean) / i_std   # (miu=0, sigma=1)
+                td['next_s_samples'][:, :, :, i] = (td['next_s_samples'][:, :, :, i] - i_mean) / i_std   # (miu=0, sigma=1)
+                data_param_dict[f'{i}_mean'] = i_mean
+                data_param_dict[f'{i}_std'] = i_std
+        reward_mean = torch.mean(td['r']).item()
+        reward_std = torch.std(td['r']).item()
         td['r'] = (td['r'] - reward_mean) / reward_std   # (miu=0, sigma=1)
+        td['r_samples'] = (td['r_samples'] - reward_mean) / reward_std   # (miu=0, sigma=1)
+        data_param_dict['reward_mean'] = reward_mean
+        data_param_dict['reward_std'] = reward_std
+        np.save('/mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample_param_dict.npy', data_param_dict)
+        
         try:
             _cfg.episode_length = td.shape[1]
         except IndexError:
@@ -137,16 +153,28 @@ class OfflineTrainer(Trainer):
             _cfg = deepcopy(self.cfg)
             _cfg.buffer_size = self.cfg.eval_buffer_size
             _cfg.steps = _cfg.buffer_size
-            self.eval_buffer = Buffer(_cfg)  # 假设Buffer是你的数据缓冲区类
+            self.eval_buffer = DistributedBuffer(_cfg)  # 假设Buffer是你的数据缓冲区类
             
             fp = self.cfg.eval_data_dir
             with open(fp, 'rb') as f:
                 td = pickle.load(f)
             td = TensorDict({k: torch.tensor(v) for k, v in td.items()})
+            
             # norm
-            td['s'] = (td['s'] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
-            td['s'][:, -1] = (td['s'][:, -1] + 1) / 7.0 - 1
+            for i in range(td['s'].shape[-1]):
+                if i == 0:
+                    td['s'][:, :, i] = (td['s'][:, :, i] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
+                    td['next_s_samples'][:, :, :, i] = (td['next_s_samples'][:, :, :, i] / 100.0) * 2 - 1     # [0,100] -> [-1, 1]
+                else:
+                    i_mean = data_param_dict[f'{i}_mean']
+                    i_std = data_param_dict[f'{i}_std']
+                    td['s'][:, :, i] = (td['s'][:, :, i] - i_mean) / i_std   # (miu=0, sigma=1)
+                    td['next_s_samples'][:, :, :, i] = (td['next_s_samples'][:, :, :, i] - i_mean) / i_std   # (miu=0, sigma=1)
+            reward_mean = data_param_dict['reward_mean']
+            reward_std = data_param_dict['reward_std']
             td['r'] = (td['r'] - reward_mean) / reward_std   # (miu=0, sigma=1)
+            td['r_samples'] = (td['r_samples'] - reward_mean) / reward_std   # (miu=0, sigma=1)
+        
             try:
                 _cfg.episode_length = td.shape[1]
             except IndexError:
