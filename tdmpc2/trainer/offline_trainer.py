@@ -136,7 +136,7 @@ class OfflineTrainer(Trainer):
         td['r_samples'] = (td['r_samples'] - reward_mean) / reward_std   # (miu=0, sigma=1)
         data_param_dict['reward_mean'] = reward_mean
         data_param_dict['reward_std'] = reward_std
-        np.save('/mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample_param_dict.npy', data_param_dict)
+        # np.save('/mnt/afs/chenxinyan/industrialbenchmark/industrial_benchmark_python/data/data_70_multisample_param_dict.npy', data_param_dict)
         
         try:
             _cfg.episode_length = td.shape[1]

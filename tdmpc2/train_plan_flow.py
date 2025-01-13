@@ -13,7 +13,7 @@ from termcolor import colored
 from common.parser import parse_cfg
 # from common.seed import set_seed
 from grl.utils import set_seed
-from common.buffer import Buffer
+from common.buffer import Buffer, DistributedBuffer
 from envs import make_env
 from tdmpc2 import TDMPC2, TDMPC2_Flow
 from trainer.offline_trainer import OfflineTrainer
@@ -56,7 +56,7 @@ def train(cfg: dict):
         cfg=cfg,
         env=make_env(cfg),
         agent=TDMPC2_Flow(cfg),
-        buffer=Buffer(cfg),
+        buffer=DistributedBuffer(cfg),
         logger=Logger(cfg),
     )
     trainer.train()

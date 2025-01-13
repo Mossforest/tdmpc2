@@ -36,7 +36,11 @@ class TensorWrapper(gym.Wrapper):
     def step(self, action):
         if not isinstance(action, np.ndarray):
             action = action.numpy()
-        obs, reward, done, info = self.env.step(action)
+        # obs, reward, done, info = self.env.step(action)
+        results = self.env.step(action)
+        obs, reward, done, info = results[-1]
+        next_states = torch.tensor(np.stack([r[0] for r in results]))
+        rewards = torch.tensor(np.stack([r[1] for r in results]))
         info = defaultdict(float, info)
         info['success'] = float(info['success'])
-        return self._obs_to_tensor(obs), torch.tensor(reward, dtype=torch.float32), done, info
+        return self._obs_to_tensor(obs), torch.tensor(reward, dtype=torch.float32), done, info, next_states, rewards
