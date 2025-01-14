@@ -1,7 +1,8 @@
 from copy import deepcopy
 import warnings
 
-import gymnasium as gym
+import gymnasium
+import gym
 
 from envs.wrappers.multitask import MultitaskWrapper
 from envs.wrappers.tensor import TensorWrapper
@@ -55,7 +56,7 @@ def make_env(cfg):
     """
     Make an environment for TD-MPC2 experiments.
     """
-    gym.logger.set_level(40)
+    gymnasium.logger.set_level(40)
     if cfg.multitask:
         env = make_multitask_env(cfg)
 
@@ -75,5 +76,20 @@ def make_env(cfg):
         cfg.obs_shape = {cfg.get('obs', 'state'): env.observation_space.shape}
     cfg.action_dim = env.action_space.shape[0]
     cfg.episode_length = env.max_episode_steps
+    cfg.seed_steps = max(1000, 5*cfg.episode_length)
+    return env
+
+def make_d4rl_env(cfg):
+    """
+    Make an environment for TD-MPC2 experiments.
+    """
+    gym.logger.set_level(40)
+
+    # TODO: could be setting in config with [Hopper-v2, HalfCheetah-v2, Walker2d-v2]
+    env = gym.make('Hopper-v2')
+    env = TensorWrapper(env)
+    cfg.obs_shape = {cfg.get('obs', 'state'): env.observation_space.shape}
+    cfg.action_dim = env.action_space.shape[0]
+    cfg.episode_length = 201 # env.max_episode_steps
     cfg.seed_steps = max(1000, 5*cfg.episode_length)
     return env

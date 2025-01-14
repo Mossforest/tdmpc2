@@ -1,5 +1,6 @@
 import os
-os.environ['MUJOCO_GL'] = 'egl'
+# os.environ['MUJOCO_GL'] = 'egl'
+os.environ['MUJOCO_GL'] = 'osmesa'
 os.environ['LAZY_LEGACY_OP'] = '0'
 os.environ['TORCHDYNAMO_INLINE_INBUILT_NN_MODULES'] = "1"
 os.environ['TORCH_LOGS'] = "+recompiles"
@@ -13,17 +14,17 @@ from termcolor import colored
 from common.parser import parse_cfg
 from common.seed import set_seed
 from common.buffer import Buffer
-from envs import make_env
-from tdmpc2 import TDMPC2
-from trainer.offline_trainer import OfflineTrainer
-from trainer.online_trainer import OnlineTrainer
+from envs import make_d4rl_env
+from tdmpc2_diffuser import TDMPC2Diffuser
+from trainer.online_trainer_d4rl import OnlineTrainerD4RL
 from common.logger import Logger
 
 torch.backends.cudnn.benchmark = True
 torch.set_float32_matmul_precision('high')
+os.environ["WANDB_MODE"] = "offline"
 
 
-@hydra.main(config_name='config', config_path='.')
+@hydra.main(config_name='config_diffuser_d4rl', config_path='configs')
 def train(cfg: dict):
     """
     Script for training single-task / multi-task TD-MPC2 agents.
@@ -49,11 +50,10 @@ def train(cfg: dict):
     set_seed(cfg.seed)
     print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.work_dir)
 
-    trainer_cls = OfflineTrainer
-    trainer = trainer_cls(
+    trainer = OnlineTrainerD4RL(
         cfg=cfg,
-        env=make_env(cfg),
-        agent=TDMPC2(cfg),
+        env=make_d4rl_env(cfg),
+        agent=TDMPC2Diffuser(cfg),
         buffer=Buffer(cfg),
         logger=Logger(cfg),
     )

@@ -52,7 +52,7 @@ def print_run(cfg):
 
     observations  = ", ".join([str(v) for v in cfg.obs_shape.values()])
     kvs = [
-        ("task", cfg.task_title),
+        ("task", cfg.task),
         ("steps", f"{int(cfg.steps):,}"),
         ("observations", observations),
         ("actions", cfg.action_dim),
@@ -115,7 +115,8 @@ class Logger:
         self._seed = cfg.seed
         self._eval = []
         print_run(cfg)
-        self.project = cfg.get("wandb_project", "none")
+        self.project = cfg.get("task", "none")
+        self.sub_project = cfg.get("sub_task", "none")
         self.entity = cfg.get("wandb_entity", "none")
         if not cfg.enable_wandb or self.project == "none" or self.entity == "none":
             print(colored("Wandb disabled.", "blue", attrs=["bold"]))
@@ -130,7 +131,7 @@ class Logger:
         wandb.init(
             project=self.project,
             entity=self.entity,
-            name=str(cfg.seed),
+            name=self.sub_project + str(cfg.seed),
             group=self._group,
             tags=cfg_to_group(cfg, return_list=True) + [f"seed:{cfg.seed}"],
             dir=self._log_dir,
