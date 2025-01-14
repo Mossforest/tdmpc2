@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: d4rl-diffuser
-sub_task: freeze # sub_task = exp_name
-exp_name: freeze
+sub_task: origin # sub_task = exp_name
+exp_name: origin
 
 # evaluation
 checkpoint: ???
@@ -26,9 +26,6 @@ discount_min: 0.95
 discount_max: 0.995
 buffer_size: 1_000_000
 data_dir: ???
-
-# diffuser
-diffuser_pretrained_path: /mnt/afs/chenxinyan/diffuser/logs/pretrained/hopper-medium-expert-v2/diffusion/defaults_H32_T20
 
 # planning
 mpc: true

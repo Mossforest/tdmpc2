@@ -274,7 +274,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         self.model.train()
 
         # Latent rollout
-        print('>>>>>  Latent rollout....')
+        # print('>>>>>  Latent rollout....')
         # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
         states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.obs_shape['state'][0], device=self.device)
         # z = self.model.encode(obs[0], task)
@@ -291,7 +291,7 @@ class TDMPC2Diffuser(torch.nn.Module):
             states[t+1] = s
 
         # Predictions
-        print('>>>>>  Predictions....')
+        # print('>>>>>  Predictions....')
         zs = self.model.encode(states, task)
         _zs = zs[:-1]
         qs = self.model.Q(_zs, action, task, return_type='all')
@@ -314,7 +314,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         )
 
         # Update model
-        print('>>>>>  Updating model....')
+        # print('>>>>>  Updating model....')
         total_loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip_norm)
         self.optim.step()

@@ -30,7 +30,8 @@ class OnlineTrainer(Trainer):
             obs, done, ep_reward, t = self.env.reset(), False, 0, 0
             if self.cfg.save_video:
                 self.logger.video.init(self.env, enabled=(i==0))
-            while not done:
+            # t1 = time()
+            while not done:  # todo: and t < self.cfg.episode_length:
                 torch.compiler.cudagraph_mark_step_begin()
                 action = self.agent.act(obs, t0=t==0, eval_mode=True)
                 obs, reward, done, info = self.env.step(action)
@@ -38,6 +39,7 @@ class OnlineTrainer(Trainer):
                 t += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
+            # print(f'>>>>> Time taken for one episode in {t} step:', time() - t1)
             ep_rewards.append(ep_reward)
             ep_successes.append(info['success'])
             if self.cfg.save_video:
@@ -75,6 +77,7 @@ class OnlineTrainer(Trainer):
             # Reset environment
             if done:
                 if eval_next:
+                    # print('>>>>>  Evaluating....')
                     eval_metrics = self.eval()
                     eval_metrics.update(self.common_metrics())
                     self.logger.log(eval_metrics, 'eval')
@@ -93,6 +96,7 @@ class OnlineTrainer(Trainer):
                 self._tds = [self.to_td(obs)]
 
             # Collect experience
+            # print('>>>>>  Collecting data....')
             if self._step > self.cfg.seed_steps:
                 action = self.agent.act(obs, t0=len(self._tds)==1)
             else:
@@ -101,6 +105,7 @@ class OnlineTrainer(Trainer):
             self._tds.append(self.to_td(obs, action, reward))
 
             # Update agent
+            # print('>>>>>  Updating agent....')
             if self._step >= self.cfg.seed_steps:
                 if self._step == self.cfg.seed_steps:
                     num_updates = self.cfg.seed_steps

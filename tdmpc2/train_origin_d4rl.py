@@ -15,7 +15,7 @@ from common.parser import parse_cfg
 from common.seed import set_seed
 from common.buffer import Buffer
 from envs import make_d4rl_env
-from tdmpc2_diffuser import TDMPC2Diffuser
+from tdmpc2 import TDMPC2
 from trainer.online_trainer import OnlineTrainer
 from common.logger import Logger
 
@@ -24,7 +24,7 @@ torch.set_float32_matmul_precision('high')
 os.environ["WANDB_MODE"] = "offline"
 
 
-@hydra.main(config_name='config_diffuser_d4rl', config_path='configs')
+@hydra.main(config_name='config_origin_d4rl', config_path='configs')
 def train(cfg: dict):
     """
     Script for training single-task / multi-task TD-MPC2 agents.
@@ -53,7 +53,7 @@ def train(cfg: dict):
     trainer = OnlineTrainer(
         cfg=cfg,
         env=make_d4rl_env(cfg),
-        agent=TDMPC2Diffuser(cfg),
+        agent=TDMPC2(cfg),
         buffer=Buffer(cfg),
         logger=Logger(cfg),
     )
