@@ -86,7 +86,7 @@ def make_d4rl_env(cfg):
     gym.logger.set_level(40)
 
     # TODO: could be setting in config with [Hopper-v2, HalfCheetah-v2, Walker2d-v2]
-    env = gym.make('Hopper-v2')
+    env = gym.make(cfg.environment)
     env = TensorWrapper(env)
     cfg.obs_shape = {cfg.get('obs', 'state'): env.observation_space.shape}
     cfg.action_dim = env.action_space.shape[0]

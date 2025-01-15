@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: d4rl-diffuser
-sub_task: freeze # sub_task = exp_name
-exp_name: freeze
+sub_task: halfcheetah-test # freeze # sub_task = exp_name
+exp_name: halfcheetah-test  # freeze
 
 # evaluation
 checkpoint: ???
@@ -28,7 +28,8 @@ buffer_size: 1_000_000
 data_dir: ???
 
 # diffuser
-diffuser_pretrained_path: /mnt/afs/chenxinyan/diffuser/logs/pretrained/hopper-medium-expert-v2/diffusion/defaults_H32_T20
+environment: HalfCheetah-v2  # Hopper-v2, Walker2d-v2
+diffuser_pretrained_path: /mnt/afs/chenxinyan/diffuser/logs/pretrained/halfcheetah-medium-expert-v2/diffusion/defaults_H4_T20   # hopper-medium-expert-v2/diffusion/defaults_H32_T20
 
 # planning
 mpc: true

@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: d4rl-diffuser
-sub_task: origin # sub_task = exp_name
-exp_name: origin
+sub_task: origin-test # sub_task = exp_name
+exp_name: origin-test
 
 # evaluation
 checkpoint: ???
@@ -28,7 +28,7 @@ buffer_size: 1_000_000
 data_dir: ???
 
 # planning
-mpc: true
+mpc: false
 iterations: 6
 num_samples: 512
 num_elites: 64
