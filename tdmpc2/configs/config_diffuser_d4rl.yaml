@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: d4rl-diffuser
-sub_task: halfcheetah-test # freeze # sub_task = exp_name
-exp_name: halfcheetah-test  # freeze
+sub_task: diffpo-test # freeze # sub_task = exp_name
+exp_name: diffpo-test  # freeze
 
 # evaluation
 checkpoint: ???
@@ -37,7 +37,7 @@ iterations: 6
 num_samples: 512
 num_elites: 64
 num_pi_trajs: 24
-horizon: 3
+horizon: 32 # 3
 min_std: 0.05
 max_std: 2
 temperature: 0.5

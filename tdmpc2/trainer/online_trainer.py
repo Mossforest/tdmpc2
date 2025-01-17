@@ -30,20 +30,26 @@ class OnlineTrainer(Trainer):
             obs, done, ep_reward, t = self.env.reset(), False, 0, 0
             if self.cfg.save_video:
                 self.logger.video.init(self.env, enabled=(i==0))
-            # t1 = time()
+            t1 = time()
             while not done:  # todo: and t < self.cfg.episode_length:
                 torch.compiler.cudagraph_mark_step_begin()
+                # t2 = time()
                 action = self.agent.act(obs, t0=t==0, eval_mode=True)
+                # print(f'          >>>>> Time taken for one step:', time() - t2)
                 obs, reward, done, info = self.env.step(action)
                 ep_reward += reward
                 t += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
-            # print(f'>>>>> Time taken for one episode in {t} step:', time() - t1)
+                if t % 10 == 0:
+                    print('>>>>> Current step:', t)
             ep_rewards.append(ep_reward)
             ep_successes.append(info['success'])
             if self.cfg.save_video:
                 self.logger.video.save(self._step)
+            print('>>>>> Time taken for one episode in {t} step:', time() - t1)
+            print('>>>>> Episode', i, 'reward:', ep_reward)
+            exit()
         return dict(
             episode_reward=np.nanmean(ep_rewards),
             episode_success=np.nanmean(ep_successes),

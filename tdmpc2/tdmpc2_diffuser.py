@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import time
+import einops
 
 from common import math
 from common.scale import RunningScale
@@ -28,7 +29,7 @@ class TDMPC2Diffuser(torch.nn.Module):
             {'params': self.model._task_emb.parameters() if self.cfg.multitask else []
              }
         ], lr=self.cfg.lr, capturable=True)
-        self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5, capturable=True)
+        # self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5, capturable=True)
         self.model.eval()
         self.scale = RunningScale(cfg)
         self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
@@ -130,16 +131,19 @@ class TDMPC2Diffuser(torch.nn.Module):
     def _estimate_value(self, obs, actions, task):
         """Estimate value of a trajectory starting at latent state z and executing given actions."""
         G, discount = 0, 1
-        for t in range(self.cfg.horizon):
-            z = self.model.encode(obs, task)
+        observations, _ = self.model.next_traj(obs, actions, task, n_samples=self.cfg.num_samples, atraj=True)
+        observations = einops.rearrange(observations, 'batch horizon dim -> horizon batch dim')
+        for t in range(self.cfg.horizon - 1):
+            z = self.model.encode(observations[t], task)
             reward = math.two_hot_inv(self.model.reward(z, actions[t], task), self.cfg)
-            obs = self.model.next(obs, actions[t], task, n_samples=self.cfg.num_samples)
             G = G + discount * reward
             discount_update = self.discount[torch.tensor(task)] if self.cfg.multitask else self.discount
             discount = discount * discount_update
-        z = self.model.encode(obs, task)
-        action, _ = self.model.pi(z, task)
-        return G + discount * self.model.Q(z, action, task, return_type='avg')
+        # TODO: little problem, if i use traj here, it is not convinient to get next (s, a) for Q..
+        # TODO: or tmp to use last (s, a) for Q, which sacrifices the last horizon & reward
+        # TODO: currently choose the latter one
+        z = self.model.encode(observations[-1], task)
+        return G + discount * self.model.Q(z, actions[-1], task, return_type='avg')
 
     @torch.no_grad()
     def _plan(self, obs, t0=False, eval_mode=False, task=None):
@@ -155,18 +159,14 @@ class TDMPC2Diffuser(torch.nn.Module):
         Returns:
             torch.Tensor: Action to take in the environment.
         """
+        # whole_time = 0
         # Sample policy trajectories
+        # t1 = time.time()
         if self.cfg.num_pi_trajs > 0:
-            pi_actions = torch.empty(self.cfg.horizon, self.cfg.num_pi_trajs, self.cfg.action_dim, device=self.device)
             _obs = obs.repeat(self.cfg.num_pi_trajs, 1)
-            for t in range(self.cfg.horizon-1):
-                _z = self.model.encode(_obs, task)
-                pi_actions[t], _ = self.model.pi(_z, task)
-                # todo: currently just rollout from every "current state", however could consider rollout from each trajectory (to use the history imagined info)
-                # todo 2: this traj simply use all info from diffuser, aka the action are also from diffuser
-                _obs = self.model.next(_obs, pi_actions[t], task, n_samples=self.cfg.num_pi_trajs)
-            _z = self.model.encode(_obs, task)
-            pi_actions[-1], _ = self.model.pi(_z, task)
+            _, pi_actions = self.model.next_traj(_obs, task, n_samples=self.cfg.num_pi_trajs)
+            pi_actions = einops.rearrange(pi_actions, 'batch horizon dim -> horizon batch dim')
+        # whole_time += time.time() - t1
 
         # Initialize state and parameters
         obs = obs.repeat(self.cfg.num_samples, 1)
@@ -190,9 +190,11 @@ class TDMPC2Diffuser(torch.nn.Module):
                 actions = actions * self.model._action_masks[task]
 
             # Compute elite actions
+            # t1 = time.time()
             value = self._estimate_value(obs, actions, task).nan_to_num(0)
             elite_idxs = torch.topk(value.squeeze(1), self.cfg.num_elites, dim=0).indices
             elite_value, elite_actions = value[elite_idxs], actions[:, elite_idxs]
+            # whole_time += time.time() - t1
 
             # Update parameters
             max_value = elite_value.max(0).values
@@ -212,6 +214,8 @@ class TDMPC2Diffuser(torch.nn.Module):
         if not eval_mode:
             a = a + std * torch.randn(self.cfg.action_dim, device=std.device)
         self._prev_mean.copy_(mean)
+        # print(f'>>>>> time for each diffusion:', whole_time / 7)
+        # print('\n')
         return a.clamp(-1, 1)
 
     def update_pi(self, zs, task):
@@ -275,25 +279,18 @@ class TDMPC2Diffuser(torch.nn.Module):
 
         # Latent rollout
         # print('>>>>>  Latent rollout....')
-        # zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
-        states = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.obs_shape['state'][0], device=self.device)
-        # z = self.model.encode(obs[0], task)
-        # zs[0] = z
-        s = obs[0]
-        states[0] = s
         consistency_loss = 0
-        flow_matching_loss = 0
-        for t, (_action, _next_obs) in enumerate(zip(action.unbind(0), obs[1:].unbind(0))):
-            s0 = s
-            s = self.model.next(s0, _action, task=task, n_samples=self.cfg.batch_size)  # raw
-            consistency_loss = consistency_loss + F.mse_loss(s, _next_obs) * self.cfg.rho**t
-            # flow_matching_loss = flow_matching_loss + self.model._dynamics.flow_matching_loss(x0=s0.detach(), x1=obs[t], condition=action[t]) * self.cfg.rho**t
-            states[t+1] = s
+        # TODO: how to use diffuser in training
+        # TODO: origin stats in tdmpc2's shape[0] = horizon+1, here horizon
+        states, _ = self.model.next_traj(obs[0], action, task, n_samples=self.cfg.num_pi_trajs, atraj=True)
+        states = einops.rearrange(states, 'batch horizon dim -> horizon batch dim')
+        for t, (_state, _next_obs) in enumerate(zip(states[1:].unbind(0), obs[1:].unbind(0))):
+            consistency_loss = consistency_loss + F.mse_loss(_state, _next_obs) * self.cfg.rho**t
 
         # Predictions
         # print('>>>>>  Predictions....')
         zs = self.model.encode(states, task)
-        _zs = zs[:-1]
+        _zs = zs[:-1]   # TODO: ?
         qs = self.model.Q(_zs, action, task, return_type='all')
         reward_preds = self.model.reward(_zs, action, task)
 
@@ -308,7 +305,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         reward_loss = reward_loss / self.cfg.horizon
         value_loss = value_loss / (self.cfg.horizon * self.cfg.num_q)
         total_loss = (
-            self.cfg.consistency_coef * consistency_loss +
+            # self.cfg.consistency_coef * consistency_loss +
             self.cfg.reward_coef * reward_loss +
             self.cfg.value_coef * value_loss
         )

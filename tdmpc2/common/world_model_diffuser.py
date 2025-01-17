@@ -23,7 +23,7 @@ class WorldModelDiffuser(nn.Module):
         # self._dynamics = layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], cfg.latent_dim, act=layers.SimNorm(cfg))
         self._dynamics = self.load_diffuser(cfg.diffuser_pretrained_path)
         self._reward = layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1))
-        self._pi = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 2*cfg.action_dim)
+        # self._pi = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 2*cfg.action_dim)
         self._Qs = layers.Ensemble([layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1), dropout=cfg.dropout) for _ in range(cfg.num_q)])
         self.apply(init.weight_init)
         init.zero_([self._reward[-1].weight, self._Qs.params["2", "weight"]])
@@ -48,8 +48,8 @@ class WorldModelDiffuser(nn.Module):
 
     def __repr__(self):
         repr = 'TD-MPC2 World Model\n'
-        modules = ['Encoder', 'Dynamics', 'Reward', 'Policy prior', 'Q-functions']
-        for i, m in enumerate([self._encoder, self._dynamics, self._reward, self._pi, self._Qs]):
+        modules = ['Encoder', 'Dynamics', 'Reward', 'Q-functions']
+        for i, m in enumerate([self._encoder, self._dynamics, self._reward, self._Qs]):
             repr += f"{modules[i]}: {m}\n"
         repr += "Learnable parameters: {:,}".format(self.total_params)
         return repr
@@ -111,7 +111,7 @@ class WorldModelDiffuser(nn.Module):
             return torch.stack([self._encoder[self.cfg.obs](o) for o in obs])
         return self._encoder[self.cfg.obs](obs)
     
-    def run_diffusion(self, obs, action, n_samples=1, device='cuda:0', **diffusion_kwargs):
+    def run_diffusion(self, obs, action, n_samples=1, device='cuda:0', need_action=True, **diffusion_kwargs):
         ## normalize observation for model
         obs_np = to_np(obs)
         action_np = to_np(action)
@@ -138,27 +138,114 @@ class WorldModelDiffuser(nn.Module):
         ## extract observations
         ## [ n_samples x (n_diffusion_steps + 1) x horizon x observation_dim ]
         normed_observations = diffusion[:, :, :, self._diffuser_dataset.action_dim:]
-
-        ## unnormalize observation samples from model
         observations = self._diffuser_dataset.normalizer.unnormalize(normed_observations, 'observations')
-
         ## [ (n_diffusion_steps + 1) x n_samples x horizon x observation_dim ]
         observations = einops.rearrange(observations,
                                         'batch steps horizon dim -> steps batch horizon dim')
+        
+        if need_action:
+            normed_actions = diffusion[:, :, :, :self._diffuser_dataset.action_dim]
+            actions = self._diffuser_dataset.normalizer.unnormalize(normed_actions, 'actions')
+            actions = einops.rearrange(actions,
+                                    'batch steps horizon dim -> steps batch horizon dim')
+            
+            return observations, actions
 
         return observations
     
-    def diffusion_next(self, obs, action, n_samples=1, device='cuda:0', **diffusion_kwargs):
-        diffusion_chain = self.run_diffusion(obs, action, n_samples, device, **diffusion_kwargs)   # [21, n_samples, 32, 11]
-        observations = diffusion_chain[-1]   # [n_samples, 32, 11]
-        next_obs = observations[:, 0, :]   # todo: [n_samples, 11], tmp to discard all traj timestep after next_obs
-        return to_torch(next_obs, device=device)
+    
+    def run_diffusion_wo_action(self, obs, n_samples=1, device='cuda:0', **diffusion_kwargs):
+        ## normalize observation for model
+        obs_np = to_np(obs)
+        obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
+
+        ## format `conditions` input for model
+        conditions = {
+            0: to_torch(obs_np, device=device)
+        }
+
+        samples = self._dynamics.conditional_sample_wo_action(conditions, n_samples=n_samples,
+                horizon=self.cfg.horizon, return_chain=True, verbose=False, **diffusion_kwargs)
+        diffusion = samples.chains
+
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon x (action_dim + observation_dim)]
+        diffusion = to_np(diffusion)
+
+        ## extract observations
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon x observation_dim ]
+        normed_observations = diffusion[:, :, :, self._diffuser_dataset.action_dim:]
+        observations = self._diffuser_dataset.normalizer.unnormalize(normed_observations, 'observations')
+        ## [ (n_diffusion_steps + 1) x n_samples x horizon x observation_dim ]
+        observations = einops.rearrange(observations,
+                                        'batch steps horizon dim -> steps batch horizon dim')
+        
+        normed_actions = diffusion[:, :, :, :self._diffuser_dataset.action_dim]
+        actions = self._diffuser_dataset.normalizer.unnormalize(normed_actions, 'actions')
+        actions = einops.rearrange(actions,
+                                  'batch steps horizon dim -> steps batch horizon dim')
+
+        return observations, actions
+
+    def run_diffusion_action_traj(self, obs, action_traj, n_samples=1, device='cuda:0', need_action=True, **diffusion_kwargs):
+        ## normalize observation for model
+        obs_np = to_np(obs)
+        action_np = to_np(action_traj)
+        obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
+        action_np = self._diffuser_dataset.normalizer.normalize(action_np, 'actions')
+
+        ## format `conditions` input for model
+        conditions = {
+            0: tuple([to_torch(obs_np, device=device), to_torch(action_np[0], device=device)])
+        }
+        for i in range(1, action_traj.shape[0]):
+            conditions[i] = tuple([None, to_torch(action_np[i], device=device)])
+
+        samples = self._dynamics.conditional_sample_atraj(conditions, n_samples=n_samples,
+                horizon=self.cfg.horizon, return_chain=True, verbose=False, **diffusion_kwargs)
+        diffusion = samples.chains
+
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon x (action_dim + observation_dim)]
+        diffusion = to_np(diffusion)
+
+        ## extract observations
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon x observation_dim ]
+        normed_observations = diffusion[:, :, :, self._diffuser_dataset.action_dim:]
+        observations = self._diffuser_dataset.normalizer.unnormalize(normed_observations, 'observations')
+        ## [ (n_diffusion_steps + 1) x n_samples x horizon x observation_dim ]
+        observations = einops.rearrange(observations,
+                                        'batch steps horizon dim -> steps batch horizon dim')
+        
+        if need_action:
+            normed_actions = diffusion[:, :, :, :self._diffuser_dataset.action_dim]
+            actions = self._diffuser_dataset.normalizer.unnormalize(normed_actions, 'actions')
+            actions = einops.rearrange(actions,
+                                    'batch steps horizon dim -> steps batch horizon dim')
+            
+            return observations, actions
+
+        return observations
+    
+
+    def next_traj(self, obs, action, task=None, atraj=False, n_samples=1):
+        if action is not None and atraj:
+            observations, actions = self.run_diffusion_action_traj(obs, action, n_samples, need_action=True)
+        elif action:
+            observations, actions = self.run_diffusion(obs, action, n_samples, need_action=True)
+        else:
+            observations, actions = self.run_diffusion_wo_action(obs, n_samples)
+        observations = to_torch(observations[-1], device=obs.device)   # [n_samples, horizon, 11]
+        actions = to_torch(actions[-1], device=obs.device)   # [n_samples, horizon, 11]
+        return observations, actions
 
     def next(self, obs, a, task=None, n_samples=1):
         """
         Predicts the next latent state given the current latent state and action.
         """
-        return self.diffusion_next(obs, a, n_samples)
+        # [n_samples, 11], tmp to discard all traj horizon after next_obs
+        observations = self.run_diffusion(obs, a, n_samples, need_action=False)   # [21, n_samples, horizon, 11]
+        observations = observations[-1]   # [n_samples, horizon, 11]
+        observations = observations[:, 0, :]   # [n_samples, 11]
+        return to_torch(observations, device=obs.device)
 
     def reward(self, z, a, task=None):
         """
@@ -173,6 +260,9 @@ class WorldModelDiffuser(nn.Module):
         The policy prior is a Gaussian distribution with
         mean and (log) std predicted by a neural network.
         """
+        # TODO: using diffuser, need to change input? into traj??
+        # TODO: or what else need this pi() if we have a planner for horizon;
+        # TODO: need to choose whether using this pi as single-step or multi-horizon step
         if self.cfg.multitask:
             z = self.task_emb(z, task)
 
