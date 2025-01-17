@@ -23,6 +23,50 @@ class OnlineTrainer(Trainer):
             total_time=time() - self._start_time,
         )
 
+    def eval_traj(self):
+        """Evaluate a TD-MPC2 agent."""
+        ep_rewards, ep_successes = [], []
+        for i in range(self.cfg.eval_episodes):
+            obs, done, ep_reward, t = self.env.reset(), False, 0, 0
+            action_plan = [self.env.rand_act()] * self.cfg.horizon
+            observation_traj = [obs] * self.cfg.horizon  # TODO: start, use the only one observation
+            action_ptr = self.cfg.horizon
+            if self.cfg.save_video:
+                self.logger.video.init(self.env, enabled=(i==0))
+            t1 = time()
+            while not done:
+                torch.compiler.cudagraph_mark_step_begin()
+                # t2 = time()
+                if action_ptr >= self.cfg.horizon:
+                    assert len(observation_traj) == self.cfg.horizon  # history length
+                    action_plan = self.agent.act_traj(observation_traj, action_plan, t0=t==0, eval_mode=True)
+                    action_plan = [a for a in action_plan]
+                    assert len(action_plan) == self.cfg.horizon  # planning length
+                    observation_traj.clear()
+                    action_ptr = 0
+                # print(f'          >>>>> Time taken for one step:', time() - t2)
+                obs, reward, done, info = self.env.step(action_plan[action_ptr])
+                observation_traj.append(obs)
+                ep_reward += reward
+                t += 1
+                action_ptr += 1
+                if self.cfg.save_video:
+                    self.logger.video.record(self.env)
+                if t % 10 == 0:
+                    print('>>>>> Current step:', t)
+            ep_rewards.append(ep_reward)
+            ep_successes.append(info['success'])
+            if self.cfg.save_video:
+                self.logger.video.save(self._step)
+            print('>>>>> Time taken for one episode in {t} step:', time() - t1)
+            print('>>>>> Episode', i, 'reward:', ep_reward)
+            exit()
+        return dict(
+            episode_reward=np.nanmean(ep_rewards),
+            episode_success=np.nanmean(ep_successes),
+        )
+
+
     def eval(self):
         """Evaluate a TD-MPC2 agent."""
         ep_rewards, ep_successes = [], []
@@ -84,7 +128,7 @@ class OnlineTrainer(Trainer):
             if done:
                 if eval_next:
                     # print('>>>>>  Evaluating....')
-                    eval_metrics = self.eval()
+                    eval_metrics = self.eval_traj()  # self.eval()
                     eval_metrics.update(self.common_metrics())
                     self.logger.log(eval_metrics, 'eval')
                     eval_next = False

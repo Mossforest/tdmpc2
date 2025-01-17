@@ -225,10 +225,56 @@ class WorldModelDiffuser(nn.Module):
 
         return observations
     
+    def run_diffusion_sa_traj(self, obs_traj, action_traj, n_samples=1, device='cuda:0', need_action=True, **diffusion_kwargs):
+        ## normalize observation for model
+        obs_np = to_np(obs_traj)
+        action_np = to_np(action_traj)
+        obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
+        action_np = self._diffuser_dataset.normalizer.normalize(action_np, 'actions')
 
-    def next_traj(self, obs, action, task=None, atraj=False, n_samples=1):
+        ## format `conditions` input for model
+        conditions = {}
+        for i in range(max(len(obs_np), len(action_np))):
+            if i >= len(obs_np):
+                conditions[i] = tuple([None, to_torch(action_np[i], device=device)])
+            elif i >= len(action_np):
+                conditions[i] = tuple([to_torch(obs_np[i], device=device), None])
+            else:
+                conditions[i] = tuple([to_torch(obs_np[i], device=device), to_torch(action_np[i], device=device)])
+
+        samples = self._dynamics.conditional_sample_sa_traj(conditions, n_samples=n_samples,
+                horizon=self.cfg.horizon*2, return_chain=True, verbose=False, **diffusion_kwargs)
+        diffusion = samples.chains
+
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon x (action_dim + observation_dim)]
+        diffusion = to_np(diffusion)[:, :, self.cfg.horizon:]  # from horizon*2 to horizon
+
+        ## extract observations
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon x observation_dim ]
+        normed_observations = diffusion[:, :, :, self._diffuser_dataset.action_dim:]
+        observations = self._diffuser_dataset.normalizer.unnormalize(normed_observations, 'observations')
+        ## [ (n_diffusion_steps + 1) x n_samples x horizon x observation_dim ]
+        observations = einops.rearrange(observations,
+                                        'batch steps horizon dim -> steps batch horizon dim')
+        
+        if need_action:
+            normed_actions = diffusion[:, :, :, :self._diffuser_dataset.action_dim]
+            actions = self._diffuser_dataset.normalizer.unnormalize(normed_actions, 'actions')
+            actions = einops.rearrange(actions,
+                                    'batch steps horizon dim -> steps batch horizon dim')
+            
+            return observations, actions
+
+        return observations
+    
+
+    def next_traj(self, obs, action, task=None, atraj=False, sa_traj=False, n_samples=1):
+        # obs shape: [horizon, num_samples, obs_dim] or [num_samples, obs_dim]
+        # action the same
         if action is not None and atraj:
             observations, actions = self.run_diffusion_action_traj(obs, action, n_samples, need_action=True)
+        elif action is not None and sa_traj:
+            observations, actions = self.run_diffusion_sa_traj(obs, action, n_samples, need_action=True)
         elif action:
             observations, actions = self.run_diffusion(obs, action, n_samples, need_action=True)
         else:

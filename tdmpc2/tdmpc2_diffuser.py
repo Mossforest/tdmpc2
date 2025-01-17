@@ -126,16 +126,41 @@ class TDMPC2Diffuser(torch.nn.Module):
         if eval_mode:
             action = info["mean"]
         return action[0].cpu()
+    
+    @torch.no_grad()
+    def act_traj(self, obs_traj, action_traj, t0=False, eval_mode=False, task=None):
+        """
+        Select an action by planning in the latent space of the world model.
+
+        Args:
+            obs (torch.Tensor): Observation from the environment.
+            t0 (bool): Whether this is the first observation in the episode.
+            eval_mode (bool): Whether to use the mean of the action distribution.
+            task (int): Task index (only used for multi-task experiments).
+
+        Returns:
+            torch.Tensor: Action to take in the environment.
+        """
+        if task is not None:
+            task = torch.tensor([task], device=self.device)
+        if self.cfg.mpc:
+            return self._plan_traj(obs_traj, action_traj, t0=t0, eval_mode=eval_mode, task=task).cpu()
+        else:
+            raise NotImplementedError('Not implemented for non-MPC mode')
 
     @torch.no_grad()
-    def _estimate_value(self, obs, actions, task):
+    def _estimate_value(self, obs, actions, task, sa_traj=False):
         """Estimate value of a trajectory starting at latent state z and executing given actions."""
         G, discount = 0, 1
-        observations, _ = self.model.next_traj(obs, actions, task, n_samples=self.cfg.num_samples, atraj=True)
+        if sa_traj:
+            observations, _ = self.model.next_traj(obs, actions, task, n_samples=self.cfg.num_samples, sa_traj=True)
+        else:
+            observations, _ = self.model.next_traj(obs, actions, task, n_samples=self.cfg.num_samples, atraj=True)
         observations = einops.rearrange(observations, 'batch horizon dim -> horizon batch dim')
+        action_plan = actions[self.cfg.horizon:] if sa_traj else actions
         for t in range(self.cfg.horizon - 1):
             z = self.model.encode(observations[t], task)
-            reward = math.two_hot_inv(self.model.reward(z, actions[t], task), self.cfg)
+            reward = math.two_hot_inv(self.model.reward(z, action_plan[t], task), self.cfg)
             G = G + discount * reward
             discount_update = self.discount[torch.tensor(task)] if self.cfg.multitask else self.discount
             discount = discount * discount_update
@@ -143,7 +168,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         # TODO: or tmp to use last (s, a) for Q, which sacrifices the last horizon & reward
         # TODO: currently choose the latter one
         z = self.model.encode(observations[-1], task)
-        return G + discount * self.model.Q(z, actions[-1], task, return_type='avg')
+        return G + discount * self.model.Q(z, action_plan[-1], task, return_type='avg')
 
     @torch.no_grad()
     def _plan(self, obs, t0=False, eval_mode=False, task=None):
@@ -217,6 +242,85 @@ class TDMPC2Diffuser(torch.nn.Module):
         # print(f'>>>>> time for each diffusion:', whole_time / 7)
         # print('\n')
         return a.clamp(-1, 1)
+    
+    @torch.no_grad()
+    def _plan_traj(self, obs_traj, action_traj, t0=False, eval_mode=False, task=None):
+        """
+        Plan a sequence of actions using the learned world model.
+
+        Args:
+            z (torch.Tensor): Latent state from which to plan.
+            t0 (bool): Whether this is the first observation in the episode.
+            eval_mode (bool): Whether to use the mean of the action distribution.
+            task (Torch.Tensor): Task index (only used for multi-task experiments).
+
+        Returns:
+            torch.Tensor: Action to take in the environment.
+        """
+        # whole_time = 0
+        # Sample policy trajectories
+        # t1 = time.time()
+        if self.cfg.num_pi_trajs > 0:
+            obs_traj = torch.stack(obs_traj).to(self.device, non_blocking=True).unsqueeze(1)  # [horizon, 1, obs_dim]
+            action_traj = torch.stack(action_traj).to(self.device, non_blocking=True).unsqueeze(1)  # [horizon, action_dim]
+            _obs_traj = obs_traj.repeat(1, self.cfg.num_pi_trajs, 1)  # [horizon, num_pi_trajs, obs_dim]
+            _action_traj = action_traj.repeat(1, self.cfg.num_pi_trajs, 1)
+            _, pi_actions = self.model.next_traj(_obs_traj, _action_traj, task, n_samples=self.cfg.num_pi_trajs, sa_traj=True)
+            pi_actions = einops.rearrange(pi_actions, 'batch horizon dim -> horizon batch dim')
+        # whole_time += time.time() - t1
+
+        # Initialize state and parameters
+        obs_traj = obs_traj.repeat(1, self.cfg.num_samples, 1)  # [horizon, num_samples, obs_dim]
+        action_traj = action_traj.repeat(1, self.cfg.num_samples, 1)
+        mean = torch.zeros(self.cfg.horizon, self.cfg.action_dim, device=self.device)
+        std = torch.full((self.cfg.horizon, self.cfg.action_dim), self.cfg.max_std, dtype=torch.float, device=self.device)
+        if not t0:
+            mean[:-1] = self._prev_mean[1:]
+        actions = torch.empty(self.cfg.horizon, self.cfg.num_samples, self.cfg.action_dim, device=self.device)
+        if self.cfg.num_pi_trajs > 0:
+            actions[:, :self.cfg.num_pi_trajs] = pi_actions
+
+        # Iterate MPPI
+        for _ in range(self.cfg.iterations):
+
+            # Sample actions
+            r = torch.randn(self.cfg.horizon, self.cfg.num_samples-self.cfg.num_pi_trajs, self.cfg.action_dim, device=std.device)
+            actions_sample = mean.unsqueeze(1) + std.unsqueeze(1) * r
+            actions_sample = actions_sample.clamp(-1, 1)
+            actions[:, self.cfg.num_pi_trajs:] = actions_sample
+            if self.cfg.multitask:
+                actions = actions * self.model._action_masks[task]
+
+            # Compute elite actions
+            # t1 = time.time()
+            # TODO: sa_traj ver of _estimate_value, need obs_traj & action_traj & planned actions
+            estimated_actions = torch.cat([action_traj, actions], dim=0)  # [horizon*2, num_samples, action_dim]
+            value = self._estimate_value(obs_traj, estimated_actions, task, sa_traj=True).nan_to_num(0)
+            elite_idxs = torch.topk(value.squeeze(1), self.cfg.num_elites, dim=0).indices
+            elite_value, elite_actions = value[elite_idxs], actions[:, elite_idxs]
+            # whole_time += time.time() - t1
+
+            # Update parameters
+            max_value = elite_value.max(0).values
+            score = torch.exp(self.cfg.temperature*(elite_value - max_value))
+            score = score / score.sum(0)
+            mean = (score.unsqueeze(0) * elite_actions).sum(dim=1) / (score.sum(0) + 1e-9)
+            std = ((score.unsqueeze(0) * (elite_actions - mean.unsqueeze(1)) ** 2).sum(dim=1) / (score.sum(0) + 1e-9)).sqrt()
+            std = std.clamp(self.cfg.min_std, self.cfg.max_std)
+            if self.cfg.multitask:
+                mean = mean * self.model._action_masks[task]
+                std = std * self.model._action_masks[task]
+
+        # Select action
+        rand_idx = math.gumbel_softmax_sample(score.squeeze(1))  # gumbel_softmax_sample is compatible with cuda graphs
+        actions = torch.index_select(elite_actions, 1, rand_idx).squeeze(1)  # [horizon, action_dim]
+        if not eval_mode:
+            actions = actions + std * torch.randn(self.cfg.horizon, self.cfg.action_dim, device=std.device)
+        self._prev_mean.copy_(mean)
+        # print(f'>>>>> time for each diffusion:', whole_time / 7)
+        # print('\n')
+        return actions.clamp(-1, 1)
+
 
     def update_pi(self, zs, task):
         """
