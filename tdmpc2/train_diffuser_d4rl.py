@@ -57,7 +57,7 @@ def train(cfg: dict):
         buffer=Buffer(cfg),
         logger=Logger(cfg),
     )
-    trainer.train()
+    trainer.train_traj()
     print('\nTraining completed successfully')
 
 

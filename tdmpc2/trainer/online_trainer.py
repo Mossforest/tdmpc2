@@ -28,8 +28,8 @@ class OnlineTrainer(Trainer):
         ep_rewards, ep_successes = [], []
         for i in range(self.cfg.eval_episodes):
             obs, done, ep_reward, t = self.env.reset(), False, 0, 0
-            action_plan = [self.env.rand_act()] * self.cfg.horizon
-            observation_traj = [obs] * self.cfg.horizon  # TODO: start, use the only one observation
+            action_plan = [torch.full_like(self.env.rand_act(), float('nan'))] * self.cfg.horizon
+            observation_traj = [torch.full_like(obs, float('nan'))] * self.cfg.horizon + [obs]
             action_ptr = self.cfg.horizon
             if self.cfg.save_video:
                 self.logger.video.init(self.env, enabled=(i==0))
@@ -38,11 +38,12 @@ class OnlineTrainer(Trainer):
                 torch.compiler.cudagraph_mark_step_begin()
                 # t2 = time()
                 if action_ptr >= self.cfg.horizon:
-                    assert len(observation_traj) == self.cfg.horizon  # history length
+                    assert len(observation_traj) == self.cfg.horizon + 1  # history length + current obs
                     action_plan = self.agent.act_traj(observation_traj, action_plan, t0=t==0, eval_mode=True)
                     action_plan = [a for a in action_plan]
                     assert len(action_plan) == self.cfg.horizon  # planning length
                     observation_traj.clear()
+                    observation_traj.append(obs)
                     action_ptr = 0
                 # print(f'          >>>>> Time taken for one step:', time() - t2)
                 obs, reward, done, info = self.env.step(action_plan[action_ptr])
@@ -52,15 +53,15 @@ class OnlineTrainer(Trainer):
                 action_ptr += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
-                if t % 10 == 0:
-                    print('>>>>> Current step:', t)
+                if t % 100 == 0:
+                    print('>>>>> Current eval step:', t)
+            # TODO: why the reward here are all negative?? need to debug
             ep_rewards.append(ep_reward)
             ep_successes.append(info['success'])
             if self.cfg.save_video:
                 self.logger.video.save(self._step)
-            print('>>>>> Time taken for one episode in {t} step:', time() - t1)
+            print(f'>>>>> Time taken for one episode in {t} step:', time() - t1)
             print('>>>>> Episode', i, 'reward:', ep_reward)
-            exit()
         return dict(
             episode_reward=np.nanmean(ep_rewards),
             episode_success=np.nanmean(ep_successes),
@@ -85,7 +86,7 @@ class OnlineTrainer(Trainer):
                 t += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
-                if t % 10 == 0:
+                if t % 100 == 0:
                     print('>>>>> Current step:', t)
             ep_rewards.append(ep_reward)
             ep_successes.append(info['success'])
@@ -93,7 +94,6 @@ class OnlineTrainer(Trainer):
                 self.logger.video.save(self._step)
             print('>>>>> Time taken for one episode in {t} step:', time() - t1)
             print('>>>>> Episode', i, 'reward:', ep_reward)
-            exit()
         return dict(
             episode_reward=np.nanmean(ep_rewards),
             episode_success=np.nanmean(ep_successes),
@@ -128,7 +128,7 @@ class OnlineTrainer(Trainer):
             if done:
                 if eval_next:
                     # print('>>>>>  Evaluating....')
-                    eval_metrics = self.eval_traj()  # self.eval()
+                    eval_metrics = self.eval()
                     eval_metrics.update(self.common_metrics())
                     self.logger.log(eval_metrics, 'eval')
                     eval_next = False
@@ -164,6 +164,72 @@ class OnlineTrainer(Trainer):
                     num_updates = 1
                 for _ in range(num_updates):
                     _train_metrics = self.agent.update(self.buffer)
+                train_metrics.update(_train_metrics)
+
+            self._step += 1
+
+        self.logger.finish(self.agent)
+
+
+    def train_traj(self):
+        """Train a TD-MPC2 agent."""
+        train_metrics, done, eval_next = {}, True, False
+        while self._step <= self.cfg.steps:
+            # Evaluate agent periodically
+            if self._step % self.cfg.eval_freq == 0:
+                eval_next = True
+
+            # Reset environment
+            if done:
+                if self.cfg.eval and eval_next:
+                    # print('>>>>>  Evaluating....')
+                    eval_metrics = self.eval_traj()
+                    eval_metrics.update(self.common_metrics())
+                    self.logger.log(eval_metrics, 'eval')
+                    eval_next = False
+
+                if self._step > 0:
+                    train_metrics.update(
+                        episode_reward=torch.tensor([td['reward'] for td in self._tds[1:]]).sum(),
+                        episode_success=info['success'],
+                    )
+                    train_metrics.update(self.common_metrics())
+                    self.logger.log(train_metrics, 'train')
+                    self._ep_idx = self.buffer.add(torch.cat(self._tds))
+
+                obs = self.env.reset()
+                self._tds = [self.to_td(obs)]
+                action_plan = [torch.full_like(self.env.rand_act(), float('nan'))] * self.cfg.horizon
+                observation_traj = [torch.full_like(obs, float('nan'))] * self.cfg.horizon + [obs]
+                action_ptr = self.cfg.horizon
+
+            # Collect experience
+            # print('>>>>>  Collecting data....')
+            if self._step > self.cfg.seed_steps:
+                if action_ptr >= self.cfg.horizon:
+                    action_plan = self.agent.act_traj(observation_traj, action_plan, t0=len(self._tds)==1)
+                    action_plan = [a for a in action_plan]
+                    assert len(action_plan) == self.cfg.horizon
+                    observation_traj.clear()
+                    action_ptr = 0
+                action = action_plan[action_ptr]
+            else:
+                action = self.env.rand_act()
+            obs, reward, done, info = self.env.step(action)
+            if self._step > self.cfg.seed_steps:
+                observation_traj.append(obs)
+            self._tds.append(self.to_td(obs, action, reward))
+
+            # Update agent
+            # print('>>>>>  Updating agent....')
+            if self._step >= self.cfg.seed_steps:
+                if self._step == self.cfg.seed_steps:
+                    num_updates = self.cfg.seed_steps
+                    print('Pretraining agent on seed data...')
+                else:
+                    num_updates = 1
+                for _ in range(num_updates):
+                    _train_metrics = self.agent.update_traj(self.buffer)
                 train_metrics.update(_train_metrics)
 
             self._step += 1

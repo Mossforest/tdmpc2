@@ -1,6 +1,7 @@
 from copy import deepcopy
 import einops
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -227,7 +228,7 @@ class WorldModelDiffuser(nn.Module):
     
     def run_diffusion_sa_traj(self, obs_traj, action_traj, n_samples=1, device='cuda:0', need_action=True, **diffusion_kwargs):
         ## normalize observation for model
-        obs_np = to_np(obs_traj)
+        obs_np = to_np(obs_traj)  # [horizon+1, n_samples, obs_dim]
         action_np = to_np(action_traj)
         obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
         action_np = self._diffuser_dataset.normalizer.normalize(action_np, 'actions')
@@ -236,11 +237,14 @@ class WorldModelDiffuser(nn.Module):
         conditions = {}
         for i in range(max(len(obs_np), len(action_np))):
             if i >= len(obs_np):
-                conditions[i] = tuple([None, to_torch(action_np[i], device=device)])
-            elif i >= len(action_np):
-                conditions[i] = tuple([to_torch(obs_np[i], device=device), None])
+                s = None
             else:
-                conditions[i] = tuple([to_torch(obs_np[i], device=device), to_torch(action_np[i], device=device)])
+                s = to_torch(obs_np[i], device=device) if not np.isnan(obs_np[i]).any() else None
+            if i >= len(action_np):
+                a = None
+            else:
+                a = to_torch(action_np[i], device=device) if not np.isnan(action_np[i]).any() else None
+            conditions[i] = tuple([s, a])
 
         samples = self._dynamics.conditional_sample_sa_traj(conditions, n_samples=n_samples,
                 horizon=self.cfg.horizon*2, return_chain=True, verbose=False, **diffusion_kwargs)
@@ -266,7 +270,41 @@ class WorldModelDiffuser(nn.Module):
             return observations, actions
 
         return observations
-    
+
+    def run_diffusion_pi(self, obs, n_samples=1, device='cuda:0', **diffusion_kwargs):
+        # this function only takes one obs, horizon=1, diffusion on [a, s] to get a = pi(s)
+        # obs: [n_samples, horizon=1, obs_dim]
+        ## normalize observation for model
+        obs_np = to_np(obs)
+        obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
+
+        ## format `conditions` input for model
+        conditions = {
+            0: to_torch(obs_np, device=device)
+        }
+
+        # default conditional_sample function
+        samples = self._dynamics.conditional_sample_wo_action(conditions, n_samples=n_samples,
+                horizon=1, return_chain=True, verbose=False, **diffusion_kwargs)
+        diffusion = samples.chains
+
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon=1 x (action_dim + observation_dim)]
+        diffusion = to_np(diffusion)
+
+        ## extract observations
+        ## [ n_samples x (n_diffusion_steps + 1) x horizon=1 x observation_dim ]
+        normed_observations = diffusion[:, :, :, self._diffuser_dataset.action_dim:]
+        observations = self._diffuser_dataset.normalizer.unnormalize(normed_observations, 'observations')
+        ## [ (n_diffusion_steps + 1) x n_samples x horizon=1 x observation_dim ]
+        observations = einops.rearrange(observations,
+                                        'batch steps horizon dim -> steps batch horizon dim')
+        
+        normed_actions = diffusion[:, :, :, :self._diffuser_dataset.action_dim]
+        actions = self._diffuser_dataset.normalizer.unnormalize(normed_actions, 'actions')
+        actions = einops.rearrange(actions,
+                                  'batch steps horizon dim -> steps batch horizon dim')
+
+        return actions
 
     def next_traj(self, obs, action, task=None, atraj=False, sa_traj=False, n_samples=1):
         # obs shape: [horizon, num_samples, obs_dim] or [num_samples, obs_dim]
@@ -292,6 +330,15 @@ class WorldModelDiffuser(nn.Module):
         observations = observations[-1]   # [n_samples, horizon, 11]
         observations = observations[:, 0, :]   # [n_samples, 11]
         return to_torch(observations, device=obs.device)
+    
+    def pi_next(self, obs, task=None, n_samples=1):
+        """
+        Predicts the next latent state given the current latent state and action.
+        """
+        # obs: [n_samples,  obs_dim]
+        actions = self.run_diffusion_pi(obs, n_samples)   # [21, n_samples, horizon=1, a_dim]
+        actions = actions[-1].squeeze()   # [n_samples, 11]
+        return to_torch(actions, device=obs.device)
 
     def reward(self, z, a, task=None):
         """

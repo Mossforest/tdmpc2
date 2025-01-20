@@ -9,6 +9,7 @@ exp_name: origin-test
 checkpoint: ???
 eval_episodes: 10
 eval_freq: 50000
+environment: HalfCheetah-v2  # Hopper-v2, Walker2d-v2
 
 # training
 steps: 10_000_000
