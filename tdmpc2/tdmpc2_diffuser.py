@@ -554,7 +554,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         Returns:
             dict: Dictionary of training statistics.
         """
-        obs, action, reward, task = buffer.sample_traj() # TODO
+        obs, action, reward, task = buffer.sample()
         kwargs = {}
         if task is not None:
             kwargs["task"] = task

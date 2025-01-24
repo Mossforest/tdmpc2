@@ -13,7 +13,7 @@ from termcolor import colored
 
 from common.parser import parse_cfg
 from common.seed import set_seed
-from common.buffer import Buffer
+from common.buffer import BufferTraj
 from envs import make_d4rl_env
 from tdmpc2_diffuser import TDMPC2Diffuser
 from trainer.online_trainer import OnlineTrainer
@@ -54,7 +54,7 @@ def train(cfg: dict):
         cfg=cfg,
         env=make_d4rl_env(cfg),
         agent=TDMPC2Diffuser(cfg),
-        buffer=Buffer(cfg),
+        buffer=BufferTraj(cfg),
         logger=Logger(cfg),
     )
     trainer.train_traj()
