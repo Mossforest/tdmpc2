@@ -331,6 +331,39 @@ class WorldModelDiffuser(nn.Module):
         observations = observations[:, 0, :]   # [n_samples, 11]
         return to_torch(observations, device=obs.device)
     
+    def diffusion_loss(self, obs, action, task=None):
+        # obs shape: torch.tensor, [horizon*2, num_samples, obs_dim]
+        # action the same
+        obs_ = torch.nan_to_num(obs, nan=0.0)
+        action_ = torch.nan_to_num(action, nan=0.0)
+        device = obs.device
+        ## format `conditions` input for model, aka the [:horizon+1] for state and [:horizon] for action
+        horizon = obs.shape[0] // 2
+        obs_np = to_np(obs_)
+        action_np = to_np(action_)
+        obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
+        action_np = self._diffuser_dataset.normalizer.normalize(action_np, 'actions')
+        traj_np = np.concatenate([action_np, obs_np], axis=-1)
+        trajectories = to_torch(traj_np, device=device)
+        trajectories = trajectories.permute(1, 0, 2)   # [num_samples, horizon*2, action_dim+obs_dim]
+
+        conditions = {}
+        obs_np = obs_np[:horizon+1]
+        action_np = action_np[:horizon]
+        for i in range(max(len(obs_np), len(action_np))):
+            if i >= len(obs_np):
+                s = None
+            else:
+                s = to_torch(obs_np[i], device=device) if not np.isnan(obs_np[i]).any() else None
+            if i >= len(action_np):
+                a = None
+            else:
+                a = to_torch(action_np[i], device=device) if not np.isnan(action_np[i]).any() else None
+            conditions[i] = tuple([s, a])
+        
+        loss = self._dynamics.loss(trajectories, conditions)
+        return loss
+    
     def pi_next(self, obs, task=None, n_samples=1):
         """
         Predicts the next latent state given the current latent state and action.
@@ -346,51 +379,6 @@ class WorldModelDiffuser(nn.Module):
         """
         z = torch.cat([z, a], dim=-1)
         return self._reward(z)
-
-    def pi(self, z, task):
-        """
-        Samples an action from the policy prior.
-        The policy prior is a Gaussian distribution with
-        mean and (log) std predicted by a neural network.
-        """
-        # TODO: using diffuser, need to change input? into traj??
-        # TODO: or what else need this pi() if we have a planner for horizon;
-        # TODO: need to choose whether using this pi as single-step or multi-horizon step
-        if self.cfg.multitask:
-            z = self.task_emb(z, task)
-
-        # Gaussian policy prior
-        mean, log_std = self._pi(z).chunk(2, dim=-1)
-        log_std = math.log_std(log_std, self.log_std_min, self.log_std_dif)
-        eps = torch.randn_like(mean)
-
-        if self.cfg.multitask: # Mask out unused action dimensions
-            mean = mean * self._action_masks[task]
-            log_std = log_std * self._action_masks[task]
-            eps = eps * self._action_masks[task]
-            action_dims = self._action_masks.sum(-1)[task].unsqueeze(-1)
-        else: # No masking
-            action_dims = None
-
-        log_prob = math.gaussian_logprob(eps, log_std)
-
-        # Scale log probability by action dimensions
-        size = eps.shape[-1] if action_dims is None else action_dims
-        scaled_log_prob = log_prob * size
-
-        # Reparameterization trick
-        action = mean + eps * log_std.exp()
-        mean, action, log_prob = math.squash(mean, action, log_prob)
-
-        entropy_scale = scaled_log_prob / (log_prob + 1e-8)
-        info = TensorDict({
-            "mean": mean,
-            "log_std": log_std,
-            "action_prob": 1.,
-            "entropy": -log_prob,
-            "scaled_entropy": -log_prob * entropy_scale,
-        })
-        return action, info
 
     def Q(self, z, a, task, return_type='min', target=False, detach=False):
         """

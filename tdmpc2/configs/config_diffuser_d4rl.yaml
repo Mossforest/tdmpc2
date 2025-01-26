@@ -2,21 +2,22 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: walker2d-diffuser
-sub_task: diffpo-freeze # sub_task = exp_name
-exp_name: diffpo-freeze
+sub_task: diffpo-diffloss # sub_task = exp_name
+exp_name: diffpo-diffloss
 
 # evaluation
 eval: true
 checkpoint: ???
-eval_episodes: 10
+eval_episodes: 1
 eval_freq: 50000
 
 # training
 steps: 10_000_000
 batch_size: 256
-reward_coef: 0.1
-value_coef: 0.1
-consistency_coef: 20
+diffusion_coef: 0.1
+reward_coef: 1
+value_coef: 1
+consistency_coef: 0.05 # 20
 rho: 0.5
 lr: 3e-4
 enc_lr_scale: 0.3
@@ -88,7 +89,7 @@ episode_length: ???
 obs_shapes: ???
 action_dims: ???
 episode_lengths: ???
-seed_steps: ???
+seed_steps: 0
 bin_size: ???
 
 # speedups

@@ -1,11 +1,12 @@
 defaults:
     - override hydra/launcher: submitit_local
 
-task: d4rl-diffuser
-sub_task: freeze-nompc # sub_task = exp_name
-exp_name: freeze-nompc
+task: halfcheetah-diffuser
+sub_task: diffpo-freeze # sub_task = exp_name
+exp_name: diffpo-freeze
 
 # evaluation
+eval: true
 checkpoint: ???
 eval_episodes: 10
 eval_freq: 50000
@@ -28,15 +29,16 @@ buffer_size: 1_000_000
 data_dir: ???
 
 # diffuser
-diffuser_pretrained_path: /mnt/afs/chenxinyan/diffuser/logs/pretrained/hopper-medium-expert-v2/diffusion/defaults_H32_T20
+environment: HalfCheetah-v2 #Walker2d-v2, HalfCheetah-v2, Walker2d-v2
+diffuser_pretrained_path: /mnt/afs/chenxinyan/diffuser/logs/pretrained/halfcheetah-medium-expert-v2/diffusion/defaults_H4_T20
 
 # planning
-mpc: false
+mpc: true
 iterations: 6
 num_samples: 512
 num_elites: 64
 num_pi_trajs: 24
-horizon: 3
+horizon: 16
 min_std: 0.05
 max_std: 2
 temperature: 0.5

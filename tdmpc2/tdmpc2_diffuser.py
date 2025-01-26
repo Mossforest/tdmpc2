@@ -451,7 +451,7 @@ class TDMPC2Diffuser(torch.nn.Module):
     def _update_traj(self, obs_trajs, action_trajs, reward_trajs, task=None):
         # obs_trajs: [horizon * 2, batch, obs_dim]
         # action_trajs: [horizon * 2, batch, action_dim]
-        # reward_trajs: [horizon * 2, batch]
+        # reward_trajs: [horizon * 2, batch] 
         # Compute targets
         with torch.no_grad():
             # [horizon-1, batch, obs_dim]
@@ -459,12 +459,14 @@ class TDMPC2Diffuser(torch.nn.Module):
 
         # Prepare for update
         self.model.train()
+        
+        # diffusion train
+        # print('>>>>>  Diffusion training....')
+        diffusion_loss = self.model.diffusion_loss(obs_trajs, action_trajs, task)
 
         # Latent rollout
         # print('>>>>>  Latent rollout....')
         consistency_loss = 0
-        # TODO: how to use diffuser in training
-        # TODO: origin stats in tdmpc2's shape[0] = horizon+1, here horizon
         history_obs_trajs, future_obs_trajs = obs_trajs[:self.cfg.horizon+1], obs_trajs[self.cfg.horizon:]  # [horizon+1, batch, obs_dim], [horizon]
         history_action_trajs, future_action_trajs = action_trajs[:self.cfg.horizon], action_trajs[self.cfg.horizon:]  # [horizon, batch, action_dim]
         history_reward_trajs, future_reward_trajs = reward_trajs[:self.cfg.horizon], reward_trajs[self.cfg.horizon:]  # [horizon, batch, action_dim]
@@ -493,9 +495,10 @@ class TDMPC2Diffuser(torch.nn.Module):
         reward_loss = reward_loss / self.cfg.horizon
         value_loss = value_loss / (self.cfg.horizon * self.cfg.num_q)
         total_loss = (
-            # self.cfg.consistency_coef * consistency_loss +
+            self.cfg.consistency_coef * consistency_loss +
             self.cfg.reward_coef * reward_loss +
-            self.cfg.value_coef * value_loss
+            self.cfg.value_coef * value_loss +
+            self.cfg.diffusion_coef * diffusion_loss
         )
 
         # Update model
@@ -514,6 +517,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         # Return training statistics
         self.model.eval()
         info = TensorDict({
+            "diffusion_loss": diffusion_loss,
             "consistency_loss": consistency_loss,
             "reward_loss": reward_loss,
             "value_loss": value_loss,

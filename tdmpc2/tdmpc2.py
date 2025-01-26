@@ -319,6 +319,9 @@ class TDMPC2(torch.nn.Module):
             "total_loss": total_loss,
             "grad_norm": grad_norm,
         })
+        print('=====  Finishing update: ')
+        for k, v in info.items():
+            print(f'=====       {k}: {v}')
         info.update(pi_info)
         return info.detach().mean()
 
