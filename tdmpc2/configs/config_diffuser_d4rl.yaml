@@ -2,8 +2,8 @@ defaults:
     - override hydra/launcher: submitit_local
 
 task: walker2d-diffuser
-sub_task: diffpo-diffloss # sub_task = exp_name
-exp_name: diffpo-diffloss
+sub_task: diffpo-repaint # sub_task = exp_name
+exp_name: diffpo-repaint
 
 # evaluation
 eval: true

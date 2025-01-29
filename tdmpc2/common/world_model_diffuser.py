@@ -306,17 +306,10 @@ class WorldModelDiffuser(nn.Module):
 
         return actions
 
-    def next_traj(self, obs, action, task=None, atraj=False, sa_traj=False, n_samples=1):
+    def next_traj(self, obs, action, task=None, n_samples=1):
         # obs shape: [horizon, num_samples, obs_dim] or [num_samples, obs_dim]
         # action the same
-        if action is not None and atraj:
-            observations, actions = self.run_diffusion_action_traj(obs, action, n_samples, need_action=True)
-        elif action is not None and sa_traj:
-            observations, actions = self.run_diffusion_sa_traj(obs, action, n_samples, need_action=True)
-        elif action:
-            observations, actions = self.run_diffusion(obs, action, n_samples, need_action=True)
-        else:
-            observations, actions = self.run_diffusion_wo_action(obs, n_samples)
+        observations, actions = self.run_diffusion_sa_traj(obs, action, n_samples, need_action=True)
         observations = to_torch(observations[-1], device=obs.device)   # [n_samples, horizon, 11]
         actions = to_torch(actions[-1], device=obs.device)   # [n_samples, horizon, 11]
         return observations, actions
