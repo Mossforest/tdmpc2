@@ -1,7 +1,7 @@
 defaults:
     - override hydra/launcher: submitit_local
 
-task: walker2d-diffuser
+task: halfcheetah-diffuser
 sub_task: origin # sub_task = exp_name
 exp_name: origin
 
@@ -27,7 +27,7 @@ discount_max: 0.995
 buffer_size: 1_000_000
 data_dir: ???
 
-environment: Walker2d-v2 # Hopper-v2, HalfCheetah-v2, Walker2d-v2
+environment: HalfCheetah-v2 # Hopper-v2, HalfCheetah-v2, Walker2d-v2
 
 # planning
 mpc: true
