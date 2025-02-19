@@ -1,6 +1,7 @@
 import torch
 from torch.nn import Buffer
 
+
 class RunningScale(torch.nn.Module):
     """Running trimmed scale estimator."""
 
