@@ -28,29 +28,17 @@ class OnlineTrainer(Trainer):
         ep_rewards, ep_successes = [], []
         for i in range(self.cfg.eval_episodes):
             obs, done, ep_reward, t = self.env.reset(), False, 0, 0
-            action_plan = [torch.full_like(self.env.rand_act(), float('nan'))] * self.cfg.horizon
-            observation_traj = [torch.full_like(obs, float('nan'))] * self.cfg.horizon + [obs]
-            action_ptr = self.cfg.horizon
             if self.cfg.save_video:
                 self.logger.video.init(self.env, enabled=(i==0))
             t1 = time()
             while not done:
                 torch.compiler.cudagraph_mark_step_begin()
                 # t2 = time()
-                if action_ptr >= self.cfg.horizon:
-                    assert len(observation_traj) == self.cfg.horizon + 1  # history length + current obs
-                    action_plan = self.agent.act_traj(observation_traj, action_plan, t0=t==0, eval_mode=True)
-                    action_plan = [a for a in action_plan]
-                    assert len(action_plan) == self.cfg.horizon  # planning length
-                    observation_traj.clear()
-                    observation_traj.append(obs)
-                    action_ptr = 0
+                action = self.agent.act(obs, t0=t==0, eval_mode=True)
                 # print(f'          >>>>> Time taken for one step:', time() - t2)
-                obs, reward, done, info = self.env.step(action_plan[action_ptr])
-                observation_traj.append(obs)
+                obs, reward, done, info = self.env.step(action)
                 ep_reward += reward
                 t += 1
-                action_ptr += 1
                 if self.cfg.save_video:
                     self.logger.video.record(self.env)
                 if t % 100 == 0:
@@ -92,7 +80,7 @@ class OnlineTrainer(Trainer):
             ep_successes.append(info['success'])
             if self.cfg.save_video:
                 self.logger.video.save(self._step)
-            print('>>>>> Time taken for one episode in {t} step:', time() - t1)
+            print(f'>>>>> Time taken for one episode in {t} step:', time() - t1)
             print('>>>>> Episode', i, 'reward:', ep_reward)
         return dict(
             episode_reward=np.nanmean(ep_rewards),
@@ -199,25 +187,14 @@ class OnlineTrainer(Trainer):
 
                 obs = self.env.reset()
                 self._tds = [self.to_td(obs)]
-                action_plan = [torch.full_like(self.env.rand_act(), float('nan'))] * self.cfg.horizon
-                observation_traj = [torch.full_like(obs, float('nan'))] * self.cfg.horizon + [obs]
-                action_ptr = self.cfg.horizon
 
             # Collect experience
             # print('>>>>>  Collecting data....')
             if self._step > self.cfg.seed_steps:
-                if action_ptr >= self.cfg.horizon:
-                    action_plan = self.agent.act_traj(observation_traj, action_plan, t0=len(self._tds)==1)
-                    action_plan = [a for a in action_plan]
-                    assert len(action_plan) == self.cfg.horizon
-                    observation_traj.clear()
-                    action_ptr = 0
-                action = action_plan[action_ptr]
+                action = self.agent.act(obs, t0=len(self._tds)==1)
             else:
                 action = self.env.rand_act()
             obs, reward, done, info = self.env.step(action)
-            if self._step > self.cfg.seed_steps:
-                observation_traj.append(obs)
             self._tds.append(self.to_td(obs, action, reward))
 
             # Update agent

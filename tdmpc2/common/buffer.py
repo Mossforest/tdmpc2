@@ -127,7 +127,7 @@ class BufferTraj():
             strict_length=True,
             cache_values=cfg.multitask,
         )
-        self._batch_size = cfg.batch_size * (cfg.horizon*2)
+        self._batch_size = cfg.batch_size * (cfg.horizon+1)
         self._num_eps = 0
 
     @property
@@ -201,9 +201,9 @@ class BufferTraj():
         Expects `td` to be a TensorDict with batch size TxB.
         """
         td = td.select("obs", "action", "reward", "task", strict=False).to(self._device, non_blocking=True)
-        obs = td.get('obs').contiguous()
-        action = td.get('action').contiguous()
-        reward = td.get('reward').unsqueeze(-1).contiguous()
+        obs = td.get('obs')[:-1].contiguous()
+        action = td.get('action')[1:].contiguous()
+        reward = td.get('reward')[1:].unsqueeze(-1).contiguous()
         task = td.get('task', None)
         if task is not None:
             task = task[0].contiguous()
@@ -211,5 +211,5 @@ class BufferTraj():
 
     def sample(self):
         """Sample a batch of subsequences from the buffer."""
-        td = self._buffer.sample().view(-1, self.cfg.horizon*2).permute(1, 0)
+        td = self._buffer.sample().view(-1, self.cfg.horizon+1).permute(1, 0)
         return self._prepare_batch(td)

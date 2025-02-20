@@ -306,10 +306,9 @@ class WorldModelDiffuser(nn.Module):
 
         return actions
 
-    def next_traj(self, obs, action, task=None, n_samples=1):
-        # obs shape: [horizon, num_samples, obs_dim] or [num_samples, obs_dim]
-        # action the same
-        observations, actions = self.run_diffusion_sa_traj(obs, action, n_samples, need_action=True)
+    def next_traj(self, obs, task=None, n_samples=1):
+        # obs shape: [num_samples, obs_dim]
+        observations, actions = self.run_diffusion_wo_action(obs, n_samples)
         observations = to_torch(observations[-1], device=obs.device)   # [n_samples, horizon, 11]
         actions = to_torch(actions[-1], device=obs.device)   # [n_samples, horizon, 11]
         return observations, actions
@@ -325,34 +324,22 @@ class WorldModelDiffuser(nn.Module):
         return to_torch(observations, device=obs.device)
     
     def diffusion_loss(self, obs, action, task=None):
-        # obs shape: torch.tensor, [horizon*2, num_samples, obs_dim]
+        # obs shape: torch.tensor, [horizon, num_samples, obs_dim]
         # action the same
         obs_ = torch.nan_to_num(obs, nan=0.0)
         action_ = torch.nan_to_num(action, nan=0.0)
         device = obs.device
-        ## format `conditions` input for model, aka the [:horizon+1] for state and [:horizon] for action
-        horizon = obs.shape[0] // 2
         obs_np = to_np(obs_)
         action_np = to_np(action_)
         obs_np = self._diffuser_dataset.normalizer.normalize(obs_np, 'observations')
         action_np = self._diffuser_dataset.normalizer.normalize(action_np, 'actions')
         traj_np = np.concatenate([action_np, obs_np], axis=-1)
         trajectories = to_torch(traj_np, device=device)
-        trajectories = trajectories.permute(1, 0, 2)   # [num_samples, horizon*2, action_dim+obs_dim]
+        trajectories = trajectories.permute(1, 0, 2)   # [num_samples, horizon, action_dim+obs_dim]
 
-        conditions = {}
-        obs_np = obs_np[:horizon+1]
-        action_np = action_np[:horizon]
-        for i in range(max(len(obs_np), len(action_np))):
-            if i >= len(obs_np):
-                s = None
-            else:
-                s = to_torch(obs_np[i], device=device) if not np.isnan(obs_np[i]).any() else None
-            if i >= len(action_np):
-                a = None
-            else:
-                a = to_torch(action_np[i], device=device) if not np.isnan(action_np[i]).any() else None
-            conditions[i] = tuple([s, a])
+        conditions = {
+            0: to_torch(obs_np[0], device=device)
+        }
         
         loss = self._dynamics.loss(trajectories, conditions)
         return loss

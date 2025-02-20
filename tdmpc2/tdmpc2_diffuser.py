@@ -122,11 +122,7 @@ class TDMPC2Diffuser(torch.nn.Module):
             task = torch.tensor([task], device=self.device)
         if self.cfg.mpc:
             return self.plan(obs, t0=t0, eval_mode=eval_mode, task=task).cpu()
-        z = self.model.encode(obs, task)
-        action, info = self.model.pi(z, task)
-        if eval_mode:
-            action = info["mean"]
-        return action[0].cpu()
+        raise NotImplementedError('Not implemented for non-MPC mode')
     
     @torch.no_grad()
     def act_traj(self, obs_traj, action_traj, t0=False, eval_mode=False, task=None):
@@ -164,6 +160,36 @@ class TDMPC2Diffuser(torch.nn.Module):
             discount = discount * discount_update
         z = self.model.encode(observations[-1], task)
         return G + discount * self.model.Q(z, action_plan[-1], task, return_type='avg')
+
+    @torch.no_grad()
+    def _plan(self, obs, t0=False, eval_mode=False, task=None):
+        """
+        Plan a sequence of actions using the learned world model.
+
+        Args:
+            obs_traj (list of torch.Tensor): [horizon + 1, obs_dim]
+            action_traj (list of torch.Tensor): [horizon, action_dim]
+            z (torch.Tensor): Latent state from which to plan.
+            t0 (bool): Whether this is the first observation in the episode.
+            eval_mode (bool): Whether to use the mean of the action distribution.
+            task (Torch.Tensor): Task index (only used for multi-task experiments).
+
+        Returns:
+            torch.Tensor: Action to take in the environment.
+        """
+        # whole_time = 0
+        # Sample policy trajectories
+        # t1 = time.time()
+        if self.cfg.num_pi_trajs > 0:
+            obs_traj = torch.Tensor(obs).to(self.device, non_blocking=True)  # [1, obs_dim]
+            _obs_traj = obs_traj.repeat(self.cfg.num_pi_trajs, 1)  # [num_pi_trajs, obs_dim]
+            _, pi_actions = self.model.next_traj(_obs_traj, task, n_samples=self.cfg.num_pi_trajs)
+            # pi_actions = einops.rearrange(pi_actions, 'batch horizon dim -> horizon batch dim')
+        # whole_time += time.time() - t1
+        
+        # same as diffuser.GuidedPolicy.__call__
+        action = pi_actions[0, 0]
+        return action
 
     @torch.no_grad()
     def _plan_traj(self, obs_traj, action_traj, t0=False, eval_mode=False, task=None):
@@ -302,14 +328,9 @@ class TDMPC2Diffuser(torch.nn.Module):
         return result.reshape(_shape[0], _shape[1], -1)
 
     def _update_traj(self, obs_trajs, action_trajs, reward_trajs, task=None):
-        # obs_trajs: [horizon * 2, batch, obs_dim]
-        # action_trajs: [horizon * 2, batch, action_dim]
-        # reward_trajs: [horizon * 2, batch] 
-        # Compute targets
-        with torch.no_grad():
-            # [horizon-1, batch, obs_dim]
-            td_targets = self._td_target(obs_trajs[self.cfg.horizon+1:], reward_trajs[self.cfg.horizon+1:], task)
-
+        # obs_trajs: [horizon, batch, obs_dim]
+        # action_trajs: [horizon, batch, action_dim]
+        # reward_trajs: [horizon, batch] 
         # Prepare for update
         self.model.train()
         
@@ -320,63 +341,27 @@ class TDMPC2Diffuser(torch.nn.Module):
         # Latent rollout
         # print('>>>>>  Latent rollout....')
         consistency_loss = 0
-        history_obs_trajs, future_obs_trajs = obs_trajs[:self.cfg.horizon+1], obs_trajs[self.cfg.horizon:]  # [horizon+1, batch, obs_dim], [horizon]
-        history_action_trajs, future_action_trajs = action_trajs[:self.cfg.horizon], action_trajs[self.cfg.horizon:]  # [horizon, batch, action_dim]
-        history_reward_trajs, future_reward_trajs = reward_trajs[:self.cfg.horizon], reward_trajs[self.cfg.horizon:]  # [horizon, batch, action_dim]
-        predicted_obs_trajs, predicted_action_trajs = self.model.next_traj(history_obs_trajs, history_action_trajs, task, n_samples=self.cfg.batch_size)  # [batch, horizon, obs_dim]
+        predicted_obs_trajs, predicted_action_trajs = self.model.next_traj(obs_trajs[0], task, n_samples=self.cfg.batch_size)  # [batch, horizon, obs_dim]
         predicted_obs_trajs = einops.rearrange(predicted_obs_trajs, 'batch horizon dim -> horizon batch dim')
         predicted_action_trajs = einops.rearrange(predicted_action_trajs, 'batch horizon dim -> horizon batch dim')
-        consistency_loss += F.mse_loss(predicted_action_trajs[0], future_action_trajs[0])
-        for t, (_state, _next_obs, _pred_action, _action) in enumerate(zip(predicted_obs_trajs[1:].unbind(0), future_obs_trajs[1:].unbind(0), predicted_action_trajs[1:].unbind(0), future_action_trajs[1:].unbind(0))):
+        consistency_loss += F.mse_loss(predicted_action_trajs[0], action_trajs[0])
+        for t, (_state, _next_obs, _pred_action, _action) in enumerate(zip(predicted_obs_trajs[1:].unbind(0), obs_trajs[1:].unbind(0), predicted_action_trajs[1:].unbind(0), action_trajs[1:].unbind(0))):
             consistency_loss = consistency_loss + F.mse_loss(_state, _next_obs) * self.cfg.rho**t
             consistency_loss = consistency_loss + F.mse_loss(_pred_action, _action) * self.cfg.rho**t
 
-        # Predictions
-        # print('>>>>>  Predictions....')
-        zs = self.model.encode(future_obs_trajs, task)  # [horizon, batch, obs_dim]
-        assert zs.shape[0] == future_action_trajs.shape[0]
-        qs = self.model.Q(zs, future_action_trajs, task, return_type='all')
-        reward_preds = self.model.reward(zs, future_action_trajs, task)
-
-        # Compute losses
-        reward_loss, value_loss = 0, 0
-        for t, (rew_pred_unbind, rew_unbind, td_targets_unbind, qs_unbind) in enumerate(zip(reward_preds.unbind(0), future_reward_trajs.unbind(0), td_targets.unbind(0), qs.unbind(1))):
-            reward_loss = reward_loss + math.soft_ce(rew_pred_unbind, rew_unbind, self.cfg).mean() * self.cfg.rho**t
-            for _, qs_unbind_unbind in enumerate(qs_unbind.unbind(0)):
-                value_loss = value_loss + math.soft_ce(qs_unbind_unbind, td_targets_unbind, self.cfg).mean() * self.cfg.rho**t
-
         consistency_loss = consistency_loss / self.cfg.horizon
-        reward_loss = reward_loss / self.cfg.horizon
-        value_loss = value_loss / (self.cfg.horizon * self.cfg.num_q)
-        total_loss = (
-            self.cfg.consistency_coef * consistency_loss +
-            self.cfg.reward_coef * reward_loss +
-            self.cfg.value_coef * value_loss +
-            self.cfg.diffusion_coef * diffusion_loss
-        )
-
-        # Update model
-        # print('>>>>>  Updating model....')
-        total_loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip_norm)
-        self.optim.step()
-        self.optim.zero_grad(set_to_none=True)
-
-        # Update policy
-        # pi_info = self.update_pi(zs.detach(), task)
-
-        # Update target Q-functions
-        self.model.soft_update_target_Q()
+        action_loss = F.mse_loss(predicted_action_trajs[0], action_trajs[0])
 
         # Return training statistics
         self.model.eval()
         info = TensorDict({
             "diffusion_loss": diffusion_loss,
             "consistency_loss": consistency_loss,
-            "reward_loss": reward_loss,
-            "value_loss": value_loss,
-            "total_loss": total_loss,
-            "grad_norm": grad_norm,
+            "action_loss": action_loss,
+            # "reward_loss": reward_loss,
+            # "value_loss": value_loss,
+            # "total_loss": total_loss,
+            # "grad_norm": grad_norm,
         })
         print('=====  Finishing update: ')
         for k, v in info.items():
