@@ -23,14 +23,12 @@ class TDMPC2Diffuser(torch.nn.Module):
         self.device = torch.device('cuda:0')
         self.model = WorldModelDiffuser(cfg).to(self.device)
         self.optim = torch.optim.Adam([
-            {'params': self.model._encoder.parameters(), 'lr': self.cfg.lr*self.cfg.enc_lr_scale},
-            # {'params': self.model._dynamics.parameters()},
+            {'params': self.model._dynamics.parameters()},
+            {'params': self.model._planner.parameters()},
             {'params': self.model._reward.parameters()},
             {'params': self.model._Qs.parameters()},
-            {'params': self.model._task_emb.parameters() if self.cfg.multitask else []
-             }
+            {'params': self.model._task_emb.parameters() if self.cfg.multitask else []}
         ], lr=self.cfg.lr, capturable=True)
-        # self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5, capturable=True)
         self.model.eval()
         self.scale = RunningScale(cfg)
         self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
@@ -38,6 +36,7 @@ class TDMPC2Diffuser(torch.nn.Module):
             [self._get_discount(ep_len) for ep_len in cfg.episode_lengths], device='cuda:0'
         ) if self.cfg.multitask else self._get_discount(cfg.episode_length)
         self._prev_mean = torch.nn.Buffer(torch.zeros(self.cfg.horizon, self.cfg.action_dim, device=self.device))
+        self.rho_tensor  = self.cfg.rho ** torch.arange(self.cfg.horizon)
         if cfg.compile:
             print('Compiling update function with torch.compile...')
             self._update = torch.compile(self._update, mode="reduce-overhead")
@@ -92,7 +91,7 @@ class TDMPC2Diffuser(torch.nn.Module):
         except: # Backwards compatibility
             def _get_submodule(state_dict, key):
                 return {k.replace(f"_{key}.", ""): v for k, v in state_dict.items() if k.startswith(f"_{key}.")}
-            for key in ["encoder", "dynamics", "reward", "pi"]:
+            for key in ["dynamics", "reward", "pi"]:
                 submodule_state_dict = _get_submodule(state_dict, key)
                 getattr(self.model, f"_{key}").load_state_dict(submodule_state_dict)
             # Q-function requires special handling
@@ -153,13 +152,11 @@ class TDMPC2Diffuser(torch.nn.Module):
         observations = einops.rearrange(observations, 'batch horizon dim -> horizon batch dim')
         action_plan = actions[self.cfg.horizon:]
         for t in range(self.cfg.horizon - 1):
-            z = self.model.encode(observations[t], task)
-            reward = math.two_hot_inv(self.model.reward(z, action_plan[t], task), self.cfg)
+            reward = math.two_hot_inv(self.model.reward(observations[t], action_plan[t], task), self.cfg)
             G = G + discount * reward
             discount_update = self.discount[torch.tensor(task)] if self.cfg.multitask else self.discount
             discount = discount * discount_update
-        z = self.model.encode(observations[-1], task)
-        return G + discount * self.model.Q(z, action_plan[-1], task, return_type='avg')
+        return G + discount * self.model.Q(observations[-1], action_plan[-1], task, return_type='avg')
 
     @torch.no_grad()
     def _plan(self, obs, t0=False, eval_mode=False, task=None):
@@ -308,7 +305,7 @@ class TDMPC2Diffuser(torch.nn.Module):
     def _td_target(self, next_obs, reward, task):
         """
         Compute the TD-target from a reward and the observation at the following time step.
-        need to first convert next_obs -> [horizon-1 * batch, obs_dim], then do encode and Q as usual, go treat them in single process rather than traj process
+        need to first convert next_obs -> [horizon-1 * batch, obs_dim], then do Q as usual, go treat them in single process rather than traj process
 
         Args:
             next_obs (torch.Tensor): [horizon-1, batch, obs_dim]
@@ -322,9 +319,8 @@ class TDMPC2Diffuser(torch.nn.Module):
         _next_obs = next_obs.reshape(-1, next_obs.shape[-1])
         _reward = reward.reshape(-1, reward.shape[-1])
         action = self.model.pi_next(_next_obs, task, n_samples=_next_obs.shape[0])
-        next_z = self.model.encode(_next_obs, task)
         discount = self.discount[task].unsqueeze(-1) if self.cfg.multitask else self.discount
-        result = _reward + discount * self.model.Q(next_z, action, task, return_type='min', target=True)
+        result = _reward + discount * self.model.Q(_next_obs, action, task, return_type='min', target=True)
         return result.reshape(_shape[0], _shape[1], -1)
 
     def _update_traj(self, obs_trajs, action_trajs, reward_trajs, task=None):
@@ -334,34 +330,60 @@ class TDMPC2Diffuser(torch.nn.Module):
         # Prepare for update
         self.model.train()
         
-        # diffusion train
-        # print('>>>>>  Diffusion training....')
+        # norm
+        obs_trajs = self.model.normalize_obs(obs_trajs, np=False)
+        action_trajs = self.model.normalize_action(action_trajs, np=False)
+        
+        # diffuser loss
+        # print('>>>>>  Diffuser training....')
         diffusion_loss = self.model.diffusion_loss(obs_trajs, action_trajs, task)
-
-        # Latent rollout
-        # print('>>>>>  Latent rollout....')
-        consistency_loss = 0
-        predicted_obs_trajs, predicted_action_trajs = self.model.next_traj(obs_trajs[0], task, n_samples=self.cfg.batch_size)  # [batch, horizon, obs_dim]
-        predicted_obs_trajs = einops.rearrange(predicted_obs_trajs, 'batch horizon dim -> horizon batch dim')
-        predicted_action_trajs = einops.rearrange(predicted_action_trajs, 'batch horizon dim -> horizon batch dim')
-        consistency_loss += F.mse_loss(predicted_action_trajs[0], action_trajs[0])
-        for t, (_state, _next_obs, _pred_action, _action) in enumerate(zip(predicted_obs_trajs[1:].unbind(0), obs_trajs[1:].unbind(0), predicted_action_trajs[1:].unbind(0), action_trajs[1:].unbind(0))):
-            consistency_loss = consistency_loss + F.mse_loss(_state, _next_obs) * self.cfg.rho**t
-            consistency_loss = consistency_loss + F.mse_loss(_pred_action, _action) * self.cfg.rho**t
-
-        consistency_loss = consistency_loss / self.cfg.horizon
-        action_loss = F.mse_loss(predicted_action_trajs[0], action_trajs[0])
+        # consistency loss
+        gt_trajs = torch.cat([action_trajs, obs_trajs], dim=-1)  # [horizon, batch, obs_dim + action_dim]
+        predict_trajs = self.model.next_traj(obs_trajs[0], task, n_samples=self.cfg.batch_size)  # [horizon，batch, obs_dim + action_dim]
+        consistency_loss = F.mse_loss(predict_trajs, gt_trajs, reduction='none').mean(dim=-1).mean(dim=-1)  # [horizon]
+        breakpoint()
+        # todo: 1. is the predicted_traj & gt_traj the same shape and normed value?;
+        # todo: 2. check if the consistency could correctly multiply to rho_tensor
+        consistency_loss = torch.mean(consistency_loss * self.rho_tensor)
+        
+        # td_loss
+        with torch.no_grad():
+            # [horizon-1, batch, obs_dim], not normed
+            # # todo: check if not normed is great?? or if i use no diffuser, i could unify the whole norm (just like latent)
+            td_targets = self._td_target(obs_trajs[1:], reward_trajs[1:], task)
+        # print('>>>>>  Predictions....')
+        qs = self.model.Q(obs_trajs, action_trajs, task, return_type='all')
+        reward_preds = self.model.reward(obs_trajs, action_trajs, task)
+        breakpoint()  # todo: check the soft_ce whether is correctly simplified w.o. loop
+        reward_loss = (math.soft_ce(reward_preds, reward_trajs, self.cfg).mean(dim=-1) * self.rho_tensor).mean()
+        # todo: and this qs unsqueeze, should i add a .mean(dim=-1) after it?
+        value_loss = (math.soft_ce(qs, td_targets.unsqueeze(1).expand_as(qs), self.cfg).mean(dim=-1) * self.rho_tensor.unsqueeze(1)).mean()
+        
+        # Update model
+        total_loss = (
+            # self.cfg.consistency_coef * consistency_loss +
+            self.cfg.reward_coef * reward_loss +
+            self.cfg.value_coef * value_loss +
+            self.cfg.diffusion_coef * diffusion_loss
+        )
+        total_loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.cfg.grad_clip_norm)
+        self.optim.step()
+        self.optim.zero_grad(set_to_none=True)
+        
+        
+        # Update target Q-functions
+        self.model.soft_update_target_Q()
 
         # Return training statistics
         self.model.eval()
         info = TensorDict({
             "diffusion_loss": diffusion_loss,
             "consistency_loss": consistency_loss,
-            "action_loss": action_loss,
-            # "reward_loss": reward_loss,
-            # "value_loss": value_loss,
-            # "total_loss": total_loss,
-            # "grad_norm": grad_norm,
+            "reward_loss": reward_loss,
+            "value_loss": value_loss,
+            "total_loss": total_loss,
+            "grad_norm": grad_norm,
         })
         print('=====  Finishing update: ')
         for k, v in info.items():
